@@ -1,0 +1,35 @@
+# Auto Collect MyGames - Configuration Template
+# Copy this file to config.yaml or simply run the application:
+# the application will automatically create config.yaml on first launch.
+
+app:
+  headless: true            # Run browser in headless/background mode (true/false)
+  action_delay_ms: 1500     # Delay between actions (in ms) for stability
+  screenshot_on_error: true # Save debug screenshot to logs/screenshots on failure
+  screenshots_dir: logs/screenshots
+  check_interval_hours: 12  # Check interval in hours
+
+notifications:
+  telegram:
+    enabled: false
+    bot_token: ''           # Telegram Bot token from @BotFather (e.g., 123456:ABC-DEF...)
+    chat_id: ''             # Your Telegram Chat ID (e.g., 987654321)
+  discord:
+    enabled: false
+    webhook_url: ''         # Discord channel webhook URL
+
+games:
+  rush_royale:
+    enabled: true
+    player_id: ''           # Rush Royale Player ID (from in-game profile)
+    platform: android       # android / ios
+    market_url: https://market.my.games/rush_royale?content=items
+    auto_claim_free_market: true
+    auto_redeem_promo: true
+
+  war_robots:
+    enabled: true
+    player_id: ''           # War Robots Pilot ID (from in-game settings)
+    platform: android       # android / ios / pc
+    market_url: https://market.my.games/war_robots/
+    auto_claim_free_market: true

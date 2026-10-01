@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Playwright & Sessions (IMPORTANT: keeps your auth credentials private)
+sessions/
+user_data/
+*.session
+storage_state*.json
+
+# Environment secrets & Local config
+.env
+*.local
+config.yaml
+
+# Logs & Screenshots
+logs/
+screenshots/
+temp/
+
+# PyInstaller & Build artifacts
+dist/
+build/
+*.spec

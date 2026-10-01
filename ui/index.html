@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Collect MyGames - Loader</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Custom Titlebar -->
+    <header class="titlebar">
+      <div class="brand-wrapper">
+        <div class="brand-icon">✦</div>
+        <div class="brand-title">MY.GAMES REWARD LOADER</div>
+        <span class="brand-badge">v1.2.0</span>
+      </div>
+
+      <div class="titlebar-center">
+        <div class="system-status-pill" id="system-status">
+          <span class="status-dot"></span>
+          <span id="status-text">СИСТЕМА ГОТОВА</span>
+        </div>
+        <button class="btn btn-primary" id="btn-top-finish-login" style="display: none; padding: 4px 12px; font-size: 11px;">
+          ✓ Я вошёл (Завершить)
+        </button>
+      </div>
+
+      <div></div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="app-body">
+      
+      <!-- Sidebar Navigation -->
+      <aside class="sidebar">
+        <div class="nav-group">
+          <div class="nav-label">Навигация</div>
+          <div class="nav-item active" data-tab="dashboard">
+            <span class="nav-icon">⚡</span>
+            <span>Дашборд</span>
+          </div>
+          <div class="nav-item" data-tab="auth">
+            <span class="nav-icon">🔑</span>
+            <span>Авторизация</span>
+          </div>
+          <div class="nav-item" data-tab="settings">
+            <span class="nav-icon">⚙️</span>
+            <span>Настройки</span>
+          </div>
+          <div class="nav-item" data-tab="console">
+            <span class="nav-icon">📜</span>
+            <span>Живая консоль</span>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="session-badge">
+            <span style="font-size: 20px;">🛡️</span>
+            <div class="session-info">
+              <span class="session-title">MY.GAMES Профиль</span>
+              <span class="session-status" id="sidebar-auth-status">Проверка...</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="main-content">
+
+        <!-- ================= TAB 1: DASHBOARD ================= -->
+        <section id="tab-dashboard" class="tab-content active">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h1>Центр управления наградами</h1>
+              <p>Автоматический сбор ежедневных подарков и бесплатных наборов из магазинов</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-secondary" id="btn-collect-head">
+                <span>👀</span> Запустить с окном
+              </button>
+              <button class="btn btn-primary btn-large" id="btn-collect-all">
+                <span>⚡</span> ЗАБРАТЬ ВСЕ НАГРАДЫ
+              </button>
+            </div>
+          </div>
+
+          <!-- Cards Grid for Games -->
+          <div class="cards-grid">
+            
+            <!-- Rush Royale Card -->
+            <div class="glass-card">
+              <div class="card-header">
+                <div class="card-title-wrap">
+                  <div class="game-icon" style="color: #a855f7; border-color: rgba(168, 85, 247, 0.3);">⚔️</div>
+                  <div>
+                    <div class="game-title">Rush Royale</div>
+                    <div class="game-sub">MY.GAMES Market</div>
+                  </div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="dash-rr-enabled" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="card-body">
+                <div class="form-group" style="margin-bottom: 8px;">
+                  <label class="form-label" style="font-size: 11px;">Игровой ID (Game ID)</label>
+                  <input type="text" class="input-field" id="dash-rr-player-id" placeholder="Введите ваш ID (например: 40734920)" style="padding: 9px 12px; font-size: 13px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label class="form-label" style="font-size: 11px;">Платформа</label>
+                  <select class="select-field" id="dash-rr-platform" style="padding: 9px 12px; font-size: 13px;">
+                    <option value="android">Android</option>
+                    <option value="ios">iOS</option>
+                    <option value="huawei">Huawei</option>
+                  </select>
+                </div>
+                <button class="btn btn-secondary btn-full" id="btn-collect-rr">
+                  <span>🎁</span> Забрать только Rush Royale
+                </button>
+              </div>
+            </div>
+
+            <!-- War Robots Card -->
+            <div class="glass-card">
+              <div class="card-header">
+                <div class="card-title-wrap">
+                  <div class="game-icon" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">🤖</div>
+                  <div>
+                    <div class="game-title">War Robots</div>
+                    <div class="game-sub">Web Shop & D-Gems</div>
+                  </div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="dash-wr-enabled" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="card-body">
+                <div class="form-group" style="margin-bottom: 8px;">
+                  <label class="form-label" style="font-size: 11px;">Pilot ID</label>
+                  <input type="text" class="input-field" id="dash-wr-player-id" placeholder="Введите ваш Pilot ID" style="padding: 9px 12px; font-size: 13px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label class="form-label" style="font-size: 11px;">Платформа</label>
+                  <select class="select-field" id="dash-wr-platform" style="padding: 9px 12px; font-size: 13px;">
+                    <option value="android">Android</option>
+                    <option value="ios">iOS</option>
+                    <option value="steam">Steam / PC</option>
+                    <option value="mygames">MY.GAMES Launcher</option>
+                  </select>
+                </div>
+                <button class="btn btn-secondary btn-full" id="btn-collect-wr">
+                  <span>🎁</span> Забрать только War Robots
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Mini Terminal Preview -->
+          <div class="glass-card" style="padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Последние события</span>
+              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="btn-to-console">
+                Вся консоль →
+              </button>
+            </div>
+            <div id="mini-log" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #94a3b8; line-height: 1.5;">
+              Ожидание команд...
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 2: AUTH & LOGIN ================= -->
+        <section id="tab-auth" class="tab-content">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h1>Авторизация в MY.GAMES</h1>
+              <p>Безопасный вход через браузер без передачи паролей сторонним скриптам</p>
+            </div>
+          </div>
+
+          <div class="glass-card" style="max-width: 680px;">
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+              <div style="font-size: 40px;" id="auth-status-icon">🔒</div>
+              <div>
+                <h3 style="font-size: 18px; margin-bottom: 4px;" id="auth-status-title">Статус: Требуется вход</h3>
+                <p style="font-size: 13px; color: var(--text-muted);" id="auth-status-desc">
+                  Для получения наград необходимо один раз авторизоваться в магазине MY.GAMES.
+                </p>
+              </div>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.3); padding: 18px; border-radius: var(--radius-md); margin-bottom: 22px; font-size: 13px; line-height: 1.6; color: #cbd5e1;">
+              <b style="color: #fff;">Как это работает:</b>
+              <ol style="padding-left: 20px; margin-top: 8px;">
+                <li>Нажмите кнопку <b>«Открыть окно входа»</b> ниже.</li>
+                <li>В открывшемся окне официального браузера выполните вход (через VK ID, логин/пароль, почту или Google).</li>
+                <li>После успешного входа на сайт просто закройте окно браузера.</li>
+                <li>Ваша сессия автоматически сохранится, и коллектор сможет работать в фоне!</li>
+              </ol>
+            </div>
+
+            <button class="btn btn-primary btn-large btn-full" id="btn-launch-login">
+              <span>🚀</span> Открыть форму входа в MY.GAMES
+            </button>
+            <button class="btn btn-secondary btn-large btn-full" id="btn-finish-login" style="display: none; margin-top: 12px; background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7;">
+              <span>✅</span> Я вошёл в аккаунт (Завершить и сохранить)
+            </button>
+          </div>
+        </section>
+
+        <!-- ================= TAB 3: SETTINGS ================= -->
+        <section id="tab-settings" class="tab-content">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h1>Параметры и Настройки</h1>
+              <p>Редактируйте параметры прямо в окне без ручной правки файлов конфигурации</p>
+            </div>
+            <button class="btn btn-primary" id="btn-save-settings">
+              <span>💾</span> Сохранить настройки
+            </button>
+          </div>
+
+          <div class="cards-grid">
+            
+            <!-- App Core Settings -->
+            <div class="glass-card">
+              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">⚙️ Параметры приложения</h3>
+              
+              <div class="form-group">
+                <label class="form-label">Интервал проверки (в часах)</label>
+                <input type="number" class="input-field" id="cfg-interval" min="1" max="48" value="12">
+              </div>
+
+              <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 14px; font-weight: 600; color: #fff;">Фоновый режим (Headless)</div>
+                  <div style="font-size: 12px; color: var(--text-muted);">Браузер работает невидимо без открытия окон</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="cfg-headless" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 14px; font-weight: 600; color: #fff;">Скриншот при ошибке</div>
+                  <div style="font-size: 12px; color: var(--text-muted);">Сохранять снимок экрана в папку логов</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="cfg-screenshot" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Games Settings -->
+            <div class="glass-card">
+              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">🎮 Игровые профили</h3>
+              
+              <div class="form-group">
+                <label class="form-label">Rush Royale: Player ID</label>
+                <input type="text" class="input-field" id="cfg-rr-player-id" placeholder="Например: 12345678">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">War Robots: Pilot ID</label>
+                <input type="text" class="input-field" id="cfg-wr-player-id" placeholder="Например: 7XYZ99">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">War Robots: Платформа</label>
+                <select class="select-field" id="cfg-wr-platform">
+                  <option value="android">Android</option>
+                  <option value="ios">iOS</option>
+                  <option value="steam">Steam / PC</option>
+                  <option value="mygames">MY.GAMES Launcher</option>
+                </select>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Notifications Settings -->
+          <div class="glass-card" style="margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+              <h3 style="font-size: 16px; color: #fff;">🔔 Оповещения в мессенджеры</h3>
+              <button class="btn btn-secondary" id="btn-test-notification">
+                <span>🧪</span> Отправить тест
+              </button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+              
+              <!-- Telegram -->
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <b style="font-size: 14px; color: #38bdf8;">Telegram Бот</b>
+                  <label class="switch">
+                    <input type="checkbox" id="cfg-tg-enabled">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Bot Token</label>
+                  <input type="text" class="input-field" id="cfg-tg-token" placeholder="123456789:ABCdefGhIjkLm...">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Chat ID</label>
+                  <input type="text" class="input-field" id="cfg-tg-chat" placeholder="123456789">
+                </div>
+              </div>
+
+              <!-- Discord -->
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <b style="font-size: 14px; color: #818cf8;">Discord Webhook</b>
+                  <label class="switch">
+                    <input type="checkbox" id="cfg-dc-enabled">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Webhook URL</label>
+                  <input type="text" class="input-field" id="cfg-dc-webhook" placeholder="https://discord.com/api/webhooks/...">
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 4: CONSOLE ================= -->
+        <section id="tab-console" class="tab-content">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h1>Живая консоль (Live Logs)</h1>
+              <p>Мониторинг событий, статусов сбора и системных сообщений в реальном времени</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-secondary" id="btn-copy-logs">
+                <span>📋</span> Скопировать логи
+              </button>
+              <button class="btn btn-secondary" id="btn-clear-logs">
+                <span>🗑️</span> Очистить
+              </button>
+            </div>
+          </div>
+
+          <div class="terminal-card">
+            <div class="terminal-header">
+              <div class="terminal-dots">
+                <span class="dot dot-red"></span>
+                <span class="dot dot-yellow"></span>
+                <span class="dot dot-green"></span>
+              </div>
+              <div class="terminal-title">AUTO_COLLECT_MYGAMES_SHELL</div>
+              <div style="font-size: 11px; color: var(--accent-emerald);">● ACTIVE</div>
+            </div>
+            <div class="terminal-body" id="terminal-output">
+              <!-- Log lines will be appended here -->
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
