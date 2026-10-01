@@ -708,8 +708,11 @@ async function pollStatusAndLogs() {
       if (status.daemon_enabled) {
         daemonPill.className = "daemon-pill active";
         if (status.next_daemon_run_in > 0) {
-          const m = Math.floor(status.next_daemon_run_in / 60);
-          daemonText.innerText = `${t("daemon_on")} (${m}m)`;
+          const totM = Math.floor(status.next_daemon_run_in / 60);
+          const h = Math.floor(totM / 60);
+          const m = totM % 60;
+          const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+          daemonText.innerText = `${t("daemon_on")} (${timeStr})`;
         } else {
           daemonText.innerText = t("daemon_on");
         }

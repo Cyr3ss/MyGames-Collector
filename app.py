@@ -630,7 +630,28 @@ def api_get_status():
     interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
     last_daemon = STATE.get("last_daemon_run", 0)
     now = time.time()
-    next_run_in = max(0, int(interval_sec - (now - last_daemon))) if (last_daemon > 0 and daemon_enabled) else 0
+
+    next_run_in = 0
+    if daemon_enabled:
+        interval_rem = max(0, int(interval_sec - (now - last_daemon))) if last_daemon > 0 else interval_sec
+        candidates = [interval_rem] if interval_rem > 0 else []
+        try:
+            cd = api_get_cooldowns()
+            rr_cfg = cfg.get("games", {}).get("rush_royale", {})
+            wr_cfg = cfg.get("games", {}).get("war_robots", {})
+            if rr_cfg.get("enabled", True) and not cd["rush_royale"]["claimed"]:
+                candidates.append(0)
+            elif rr_cfg.get("enabled", True) and cd["rush_royale"]["seconds_left"] > 0:
+                candidates.append(cd["rush_royale"]["seconds_left"])
+
+            if wr_cfg.get("enabled", True) and not cd["war_robots"]["claimed"]:
+                candidates.append(0)
+            elif wr_cfg.get("enabled", True) and cd["war_robots"]["seconds_left"] > 0:
+                candidates.append(cd["war_robots"]["seconds_left"])
+        except Exception:
+            pass
+
+        next_run_in = min(candidates) if candidates else interval_sec
 
     return {
         "is_running": STATE["is_running"],
@@ -953,24 +974,36 @@ def api_test_notify():
     return {"status": "ok", "message": "Test notification sent!"}
 
 def daemon_worker():
-    """Lightweight background thread that executes scheduled rewards collection."""
+    """Lightweight background thread that executes smart rewards collection (on cooldown expiry + scheduled interval)."""
     while True:
         try:
-            time.sleep(30)
+            time.sleep(20)
             cfg = load_config()
             daemon_enabled = cfg.get("app", {}).get("daemon_enabled", False)
-            if not daemon_enabled:
+            if not daemon_enabled or STATE["is_running"]:
                 continue
 
+            now = time.time()
             interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
             last_run = STATE.get("last_daemon_run", 0)
-            now = time.time()
 
-            if now - last_run >= interval_sec:
-                if not STATE["is_running"]:
-                    add_log("INFO", "[Daemon] Triggering scheduled rewards collection...")
-                    STATE["last_daemon_run"] = now
-                    _run_collection_task(target="all", force_head=False)
+            # Check if any enabled game reward cooldown has just expired (ready for collection)
+            cd_data = api_get_cooldowns()
+            rr_ready = cfg.get("games", {}).get("rush_royale", {}).get("enabled", True) and not cd_data["rush_royale"]["claimed"]
+            wr_ready = cfg.get("games", {}).get("war_robots", {}).get("enabled", True) and not cd_data["war_robots"]["claimed"]
+
+            # Guard against rapid retry loops: wait at least 10 minutes between runs
+            min_cooldown_gap = 600
+            should_run_cooldown = (rr_ready or wr_ready) and (now - last_run >= min_cooldown_gap)
+
+            # Scheduled interval fallback (e.g. check every 12 hours)
+            should_run_interval = (now - last_run >= interval_sec)
+
+            if should_run_cooldown or should_run_interval:
+                reason = "Reward cooldown expired" if should_run_cooldown else "Scheduled interval"
+                add_log("INFO", f"[Daemon] Triggering auto-collection ({reason})...")
+                STATE["last_daemon_run"] = now
+                _run_collection_task(target="all", force_head=False)
         except Exception as e:
             add_log("DEBUG", f"Daemon scheduler loop exception: {e}")
 
