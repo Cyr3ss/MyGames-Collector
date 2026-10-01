@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auto Collect MyGames - Loader</title>
-  <!-- Google Fonts: Inter -->
+  <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -18,20 +18,34 @@
       <div class="brand-wrapper">
         <div class="brand-icon">✦</div>
         <div class="brand-title">MY.GAMES REWARD LOADER</div>
-        <span class="brand-badge">v1.2.0</span>
+        <span class="brand-badge">v1.3.0</span>
       </div>
 
       <div class="titlebar-center">
+        <!-- Daemon Status Indicator -->
+        <div class="daemon-pill" id="daemon-status-pill" title="Фоновый планировщик сбора">
+          <span class="daemon-dot"></span>
+          <span id="daemon-status-text">ДЕМОН: ВЫКЛ</span>
+        </div>
+
+        <!-- Global Status Pill -->
         <div class="system-status-pill" id="system-status">
           <span class="status-dot"></span>
           <span id="status-text">СИСТЕМА ГОТОВА</span>
         </div>
+
+        <!-- Top Finish Login Button -->
         <button class="btn btn-primary" id="btn-top-finish-login" style="display: none; padding: 4px 12px; font-size: 11px;">
           ✓ Я вошёл (Завершить)
         </button>
       </div>
 
-      <div></div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <!-- Language Switcher -->
+        <button class="lang-switch-btn" id="btn-toggle-lang" title="Сменить язык / Switch Language">
+          🌐 <span id="current-lang-text">RU</span>
+        </button>
+      </div>
     </header>
 
     <!-- Main Layout -->
@@ -40,22 +54,30 @@
       <!-- Sidebar Navigation -->
       <aside class="sidebar">
         <div class="nav-group">
-          <div class="nav-label">Навигация</div>
+          <div class="nav-label" data-i18n="nav_label">Навигация</div>
           <div class="nav-item active" data-tab="dashboard">
             <span class="nav-icon">⚡</span>
-            <span>Дашборд</span>
+            <span data-i18n="tab_dashboard">Дашборд</span>
+          </div>
+          <div class="nav-item" data-tab="history">
+            <span class="nav-icon">📜</span>
+            <span data-i18n="tab_history">История сборов</span>
+          </div>
+          <div class="nav-item" data-tab="promocodes">
+            <span class="nav-icon">🎟️</span>
+            <span data-i18n="tab_promocodes">Промокоды</span>
           </div>
           <div class="nav-item" data-tab="auth">
             <span class="nav-icon">🔑</span>
-            <span>Авторизация</span>
+            <span data-i18n="tab_auth">Авторизация</span>
           </div>
           <div class="nav-item" data-tab="settings">
             <span class="nav-icon">⚙️</span>
-            <span>Настройки</span>
+            <span data-i18n="tab_settings">Настройки</span>
           </div>
           <div class="nav-item" data-tab="console">
-            <span class="nav-icon">📜</span>
-            <span>Живая консоль</span>
+            <span class="nav-icon">📟</span>
+            <span data-i18n="tab_console">Живая консоль</span>
           </div>
         </div>
 
@@ -63,7 +85,7 @@
           <div class="session-badge">
             <span style="font-size: 20px;">🛡️</span>
             <div class="session-info">
-              <span class="session-title">MY.GAMES Профиль</span>
+              <span class="session-title" data-i18n="session_title">MY.GAMES Профиль</span>
               <span class="session-status" id="sidebar-auth-status">Проверка...</span>
             </div>
           </div>
@@ -77,15 +99,15 @@
         <section id="tab-dashboard" class="tab-content active">
           <div class="view-header">
             <div class="view-title-group">
-              <h1>Центр управления наградами</h1>
-              <p>Автоматический сбор ежедневных подарков и бесплатных наборов из магазинов</p>
+              <h1 data-i18n="dash_title">Центр управления наградами</h1>
+              <p data-i18n="dash_sub">Автоматический сбор ежедневных подарков и бесплатных наборов из магазинов</p>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; align-items: center;">
               <button class="btn btn-secondary" id="btn-collect-head">
-                <span>👀</span> Запустить с окном
+                <span>👀</span> <span data-i18n="btn_visible">Запустить с окном</span>
               </button>
               <button class="btn btn-primary btn-large" id="btn-collect-all">
-                <span>⚡</span> ЗАБРАТЬ ВСЕ НАГРАДЫ
+                <span>⚡</span> <span data-i18n="btn_claim_all">ЗАБРАТЬ ВСЕ НАГРАДЫ</span>
               </button>
             </div>
           </div>
@@ -108,13 +130,23 @@
                   <span class="slider"></span>
                 </label>
               </div>
+
+              <!-- Live Product Preview -->
+              <div class="product-preview-wrap">
+                <img src="https://static.my.games/market/images/products/24420.png" class="product-preview-thumb" id="rr-product-img" alt="10 Bells" onerror="this.src='https://market.my.games/favicon.ico'">
+                <div class="product-preview-info">
+                  <div class="product-preview-title" id="rr-product-title">10 Колоколов призыва (Месячный подарок)</div>
+                  <div class="cooldown-badge ready" id="rr-cooldown-badge">Готово к сбору! 🎁</div>
+                </div>
+              </div>
+
               <div class="card-body">
                 <div class="form-group" style="margin-bottom: 8px;">
-                  <label class="form-label" style="font-size: 11px;">Игровой ID (Game ID)</label>
+                  <label class="form-label" style="font-size: 11px;" data-i18n="lbl_game_id">Игровой ID (Game ID)</label>
                   <input type="text" class="input-field" id="dash-rr-player-id" placeholder="Введите ваш ID (например: 40734920)" style="padding: 9px 12px; font-size: 13px;">
                 </div>
                 <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" style="font-size: 11px;">Платформа</label>
+                  <label class="form-label" style="font-size: 11px;" data-i18n="lbl_platform">Платформа</label>
                   <select class="select-field" id="dash-rr-platform" style="padding: 9px 12px; font-size: 13px;">
                     <option value="android">Android</option>
                     <option value="ios">iOS</option>
@@ -122,7 +154,7 @@
                   </select>
                 </div>
                 <button class="btn btn-secondary btn-full" id="btn-collect-rr">
-                  <span>🎁</span> Забрать только Rush Royale
+                  <span>🎁</span> <span data-i18n="btn_claim_rr">Забрать только Rush Royale</span>
                 </button>
               </div>
             </div>
@@ -142,13 +174,23 @@
                   <span class="slider"></span>
                 </label>
               </div>
+
+              <!-- Live Product Preview -->
+              <div class="product-preview-wrap">
+                <img src="https://market.my.games/favicon.ico" class="product-preview-thumb" id="wr-product-img" alt="WR Supplies">
+                <div class="product-preview-info">
+                  <div class="product-preview-title" id="wr-product-title">Ежедневный набор припасов</div>
+                  <div class="cooldown-badge ready" id="wr-cooldown-badge">Готово к сбору! 🎁</div>
+                </div>
+              </div>
+
               <div class="card-body">
                 <div class="form-group" style="margin-bottom: 8px;">
                   <label class="form-label" style="font-size: 11px;">Pilot ID</label>
                   <input type="text" class="input-field" id="dash-wr-player-id" placeholder="Введите ваш Pilot ID" style="padding: 9px 12px; font-size: 13px;">
                 </div>
                 <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" style="font-size: 11px;">Платформа</label>
+                  <label class="form-label" style="font-size: 11px;" data-i18n="lbl_platform">Платформа</label>
                   <select class="select-field" id="dash-wr-platform" style="padding: 9px 12px; font-size: 13px;">
                     <option value="android">Android</option>
                     <option value="ios">iOS</option>
@@ -157,7 +199,7 @@
                   </select>
                 </div>
                 <button class="btn btn-secondary btn-full" id="btn-collect-wr">
-                  <span>🎁</span> Забрать только War Robots
+                  <span>🎁</span> <span data-i18n="btn_claim_wr">Забрать только War Robots</span>
                 </button>
               </div>
             </div>
@@ -167,9 +209,9 @@
           <!-- Mini Terminal Preview -->
           <div class="glass-card" style="padding: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Последние события</span>
+              <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);" data-i18n="lbl_recent_events">Последние события</span>
               <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="btn-to-console">
-                Вся консоль →
+                <span data-i18n="btn_full_console">Вся консоль →</span>
               </button>
             </div>
             <div id="mini-log" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #94a3b8; line-height: 1.5;">
@@ -178,12 +220,97 @@
           </div>
         </section>
 
-        <!-- ================= TAB 2: AUTH & LOGIN ================= -->
+        <!-- ================= TAB 2: HISTORY ================= -->
+        <section id="tab-history" class="tab-content">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h1 data-i18n="hist_title">Журнал собранных наград</h1>
+              <p data-i18n="hist_sub">История всех успешных сборов, подарков и акций с прямыми ссылками на предметы</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-secondary" id="btn-refresh-history">
+                <span>🔄</span> <span data-i18n="btn_refresh">Обновить</span>
+              </button>
+              <button class="btn btn-secondary" id="btn-clear-history">
+                <span>🗑️</span> <span data-i18n="btn_clear_history">Очистить историю</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="history-container">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th style="width: 170px;" data-i18n="col_date">Дата и время</th>
+                  <th style="width: 140px;" data-i18n="col_game">Игра</th>
+                  <th data-i18n="col_item">Награда / Предмет</th>
+                  <th style="width: 120px;" data-i18n="col_status">Статус</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+            <div class="history-empty-state" id="history-empty" style="display: none;">
+              <div style="font-size: 40px; margin-bottom: 10px;">🎁</div>
+              <div style="font-size: 15px; font-weight: 600; color: #fff;" data-i18n="hist_empty_title">Наград пока не собрано</div>
+              <p style="font-size: 13px; margin-top: 4px;" data-i18n="hist_empty_desc">Нажмите «Забрать все награды» на главной панели, чтобы пополнить журнал!</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 3: PROMO CODES ================= -->
+        <section id="tab-promocodes" class="tab-content">
+          <div class="view-header">
+            <div class="view-title-group">
+              <h1 data-i18n="promo_title">Активация промокодов</h1>
+              <p data-i18n="promo_sub">Автоматический ввод промо-кодов для ваших игр в один клик</p>
+            </div>
+          </div>
+
+          <div class="glass-card promocode-card">
+            <div class="coming-soon-banner">
+              <span>⚡</span> <span data-i18n="promo_badge">СКОРО В ОБНОВЛЕНИИ V2.0</span>
+            </div>
+
+            <h3 style="font-size: 18px; margin-bottom: 8px; color: #fff;" data-i18n="promo_card_title">Универсальный активатор промокодов</h3>
+            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;" data-i18n="promo_card_desc">
+              Мы разрабатываем модуль автоматического распознавания и применения секретных промокодов для Rush Royale и War Robots без необходимости открывать игру.
+            </p>
+
+            <div class="form-group">
+              <label class="form-label" data-i18n="promo_lbl_game">Выберите игру</label>
+              <select class="select-field" id="promo-game-select">
+                <option value="rush_royale">Rush Royale</option>
+                <option value="war_robots">War Robots</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" data-i18n="promo_lbl_code">Промокод</label>
+              <input type="text" class="input-field" placeholder="Например: RUSH-HERO-2026" style="text-transform: uppercase;">
+            </div>
+
+            <button class="btn btn-secondary btn-full" style="opacity: 0.6; cursor: not-allowed;" id="btn-promo-submit">
+              <span>🚀</span> <span data-i18n="promo_btn_submit">Активировать промокод (В разработке)</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- ================= TAB 4: AUTH & LOGIN ================= -->
         <section id="tab-auth" class="tab-content">
           <div class="view-header">
             <div class="view-title-group">
-              <h1>Авторизация в MY.GAMES</h1>
-              <p>Безопасный вход через браузер без передачи паролей сторонним скриптам</p>
+              <h1 data-i18n="auth_title">Авторизация в MY.GAMES</h1>
+              <p data-i18n="auth_sub">Безопасный вход через браузер без передачи паролей сторонним скриптам</p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-secondary" id="btn-check-session">
+                <span>🔄</span> <span data-i18n="btn_check_session">Проверить сессию</span>
+              </button>
+              <button class="btn btn-secondary" id="btn-logout-session" style="color: #f87171; border-color: rgba(248, 113, 113, 0.3);">
+                <span>🚪</span> <span data-i18n="btn_logout">Выйти из аккаунта</span>
+              </button>
             </div>
           </div>
 
@@ -199,33 +326,33 @@
             </div>
 
             <div style="background: rgba(0,0,0,0.3); padding: 18px; border-radius: var(--radius-md); margin-bottom: 22px; font-size: 13px; line-height: 1.6; color: #cbd5e1;">
-              <b style="color: #fff;">Как это работает:</b>
+              <b style="color: #fff;" data-i18n="auth_how_title">Как это работает:</b>
               <ol style="padding-left: 20px; margin-top: 8px;">
-                <li>Нажмите кнопку <b>«Открыть окно входа»</b> ниже.</li>
-                <li>В открывшемся окне официального браузера выполните вход (через VK ID, логин/пароль, почту или Google).</li>
-                <li>После успешного входа на сайт просто закройте окно браузера.</li>
-                <li>Ваша сессия автоматически сохранится, и коллектор сможет работать в фоне!</li>
+                <li data-i18n="auth_step_1">Нажмите кнопку <b>«Открыть окно входа»</b> ниже.</li>
+                <li data-i18n="auth_step_2">В открывшемся окне официального браузера выполните вход (VK ID, логин/пароль, почта или Google).</li>
+                <li data-i18n="auth_step_3">После успешного входа на сайт окно само закроется или нажмите «Я вошёл».</li>
+                <li data-i18n="auth_step_4">Сессия сохраняется на несколько месяцев (Sliding Session) — повторно входить не придётся!</li>
               </ol>
             </div>
 
             <button class="btn btn-primary btn-large btn-full" id="btn-launch-login">
-              <span>🚀</span> Открыть форму входа в MY.GAMES
+              <span>🚀</span> <span data-i18n="btn_open_login">Открыть форму входа в MY.GAMES</span>
             </button>
             <button class="btn btn-secondary btn-large btn-full" id="btn-finish-login" style="display: none; margin-top: 12px; background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7;">
-              <span>✅</span> Я вошёл в аккаунт (Завершить и сохранить)
+              <span>✅</span> <span data-i18n="btn_finish_login">Я вошёл в аккаунт (Завершить и сохранить)</span>
             </button>
           </div>
         </section>
 
-        <!-- ================= TAB 3: SETTINGS ================= -->
+        <!-- ================= TAB 5: SETTINGS ================= -->
         <section id="tab-settings" class="tab-content">
           <div class="view-header">
             <div class="view-title-group">
-              <h1>Параметры и Настройки</h1>
-              <p>Редактируйте параметры прямо в окне без ручной правки файлов конфигурации</p>
+              <h1 data-i18n="cfg_title">Параметры и Настройки</h1>
+              <p data-i18n="cfg_sub">Редактируйте параметры прямо в окне без ручной правки файлов конфигурации</p>
             </div>
             <button class="btn btn-primary" id="btn-save-settings">
-              <span>💾</span> Сохранить настройки
+              <span>💾</span> <span data-i18n="btn_save_cfg">Сохранить настройки</span>
             </button>
           </div>
 
@@ -233,17 +360,29 @@
             
             <!-- App Core Settings -->
             <div class="glass-card">
-              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">⚙️ Параметры приложения</h3>
+              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">⚙️ <span data-i18n="cfg_section_app">Параметры приложения</span></h3>
               
-              <div class="form-group">
-                <label class="form-label">Интервал проверки (в часах)</label>
+              <!-- Daemon Mode Toggle -->
+              <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <div>
+                  <div style="font-size: 14px; font-weight: 600; color: #6ee7b7;" data-i18n="cfg_daemon_title">Фоновый авто-сбор (Демон)</div>
+                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_daemon_desc">Периодически собирать награды в фоновом режиме</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="cfg-daemon-enabled">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="form-group" style="margin-top: 14px;">
+                <label class="form-label" data-i18n="cfg_lbl_interval">Интервал проверки (в часах)</label>
                 <input type="number" class="input-field" id="cfg-interval" min="1" max="48" value="12">
               </div>
 
               <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <div style="font-size: 14px; font-weight: 600; color: #fff;">Фоновый режим (Headless)</div>
-                  <div style="font-size: 12px; color: var(--text-muted);">Браузер работает невидимо без открытия окон</div>
+                  <div style="font-size: 14px; font-weight: 600; color: #fff;" data-i18n="cfg_headless_title">Фоновый режим браузера (Headless)</div>
+                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_headless_desc">Браузер работает невидимо без открытия окон</div>
                 </div>
                 <label class="switch">
                   <input type="checkbox" id="cfg-headless" checked>
@@ -253,8 +392,8 @@
 
               <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <div style="font-size: 14px; font-weight: 600; color: #fff;">Скриншот при ошибке</div>
-                  <div style="font-size: 12px; color: var(--text-muted);">Сохранять снимок экрана в папку логов</div>
+                  <div style="font-size: 14px; font-weight: 600; color: #fff;" data-i18n="cfg_shot_title">Скриншот при ошибке</div>
+                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_shot_desc">Сохранять снимок экрана в папку logs/screenshots</div>
                 </div>
                 <label class="switch">
                   <input type="checkbox" id="cfg-screenshot" checked>
@@ -265,11 +404,11 @@
 
             <!-- Games Settings -->
             <div class="glass-card">
-              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">🎮 Игровые профили</h3>
+              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">🎮 <span data-i18n="cfg_section_games">Игровые профили</span></h3>
               
               <div class="form-group">
                 <label class="form-label">Rush Royale: Player ID</label>
-                <input type="text" class="input-field" id="cfg-rr-player-id" placeholder="Например: 12345678">
+                <input type="text" class="input-field" id="cfg-rr-player-id" placeholder="Например: 40734920">
               </div>
 
               <div class="form-group">
@@ -278,7 +417,7 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label">War Robots: Платформа</label>
+                <label class="form-label" data-i18n="lbl_platform">War Robots: Платформа</label>
                 <select class="select-field" id="cfg-wr-platform">
                   <option value="android">Android</option>
                   <option value="ios">iOS</option>
@@ -293,9 +432,9 @@
           <!-- Notifications Settings -->
           <div class="glass-card" style="margin-top: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
-              <h3 style="font-size: 16px; color: #fff;">🔔 Оповещения в мессенджеры</h3>
+              <h3 style="font-size: 16px; color: #fff;">🔔 <span data-i18n="cfg_notify_title">Оповещения в мессенджеры</span></h3>
               <button class="btn btn-secondary" id="btn-test-notification">
-                <span>🧪</span> Отправить тест
+                <span>🧪</span> <span data-i18n="btn_test_notify">Отправить тест</span>
               </button>
             </div>
 
@@ -339,19 +478,19 @@
           </div>
         </section>
 
-        <!-- ================= TAB 4: CONSOLE ================= -->
+        <!-- ================= TAB 6: CONSOLE ================= -->
         <section id="tab-console" class="tab-content">
           <div class="view-header">
             <div class="view-title-group">
-              <h1>Живая консоль (Live Logs)</h1>
-              <p>Мониторинг событий, статусов сбора и системных сообщений в реальном времени</p>
+              <h1 data-i18n="console_title">Живая консоль (Live Logs)</h1>
+              <p data-i18n="console_sub">Мониторинг событий, статусов сбора и системных сообщений в реальном времени</p>
             </div>
             <div style="display: flex; gap: 10px;">
               <button class="btn btn-secondary" id="btn-copy-logs">
-                <span>📋</span> Скопировать логи
+                <span>📋</span> <span data-i18n="btn_copy_logs">Скопировать логи</span>
               </button>
               <button class="btn btn-secondary" id="btn-clear-logs">
-                <span>🗑️</span> Очистить
+                <span>🗑️</span> <span data-i18n="btn_clear_logs">Очистить</span>
               </button>
             </div>
           </div>

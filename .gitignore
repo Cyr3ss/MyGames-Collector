@@ -17,10 +17,11 @@ storage_state*.json
 *.local
 config.yaml
 
-# Logs & Screenshots
+# Logs, History & Screenshots
 logs/
 screenshots/
 temp/
+history.json
 
 # PyInstaller & Build artifacts
 dist/

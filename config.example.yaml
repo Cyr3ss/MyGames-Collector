@@ -4,6 +4,7 @@
 
 app:
   headless: true            # Run browser in headless/background mode (true/false)
+  daemon_enabled: false     # Enable periodic background rewards scheduler (true/false)
   action_delay_ms: 1500     # Delay between actions (in ms) for stability
   screenshot_on_error: true # Save debug screenshot to logs/screenshots on failure
   screenshots_dir: logs/screenshots

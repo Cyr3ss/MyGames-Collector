@@ -9,6 +9,8 @@ import threading
 import subprocess
 import urllib.request
 import webbrowser
+import json
+import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -36,6 +38,7 @@ else:
 CONFIG_PATH = BASE_DIR / "config.yaml"
 SESSIONS_DIR = BASE_DIR / "sessions"
 LOGS_DIR = BASE_DIR / "logs"
+HISTORY_PATH = BASE_DIR / "history.json"
 UI_DIR = BUNDLE_DIR / "ui" if (BUNDLE_DIR / "ui").exists() else BASE_DIR / "ui"
 
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -79,6 +82,7 @@ def add_log(level: str, message: str):
 DEFAULT_CONFIG = {
     "app": {
         "headless": True,
+        "daemon_enabled": False,
         "action_delay_ms": 1500,
         "screenshot_on_error": True,
         "check_interval_hours": 12
@@ -116,11 +120,39 @@ def load_config() -> Dict[str, Any]:
     for k, v in DEFAULT_CONFIG.items():
         if k not in cfg:
             cfg[k] = v
+        elif isinstance(v, dict):
+            for sub_k, sub_v in v.items():
+                if sub_k not in cfg[k]:
+                    cfg[k][sub_k] = sub_v
     return cfg
 
 def save_config(cfg: Dict[str, Any]):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(cfg, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+
+# =====================================================================
+#                      HISTORY PERSISTENCE
+# =====================================================================
+
+def load_history() -> List[Dict[str, Any]]:
+    if not HISTORY_PATH.exists():
+        return []
+    try:
+        with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_history_entry(entry: Dict[str, Any]):
+    history = load_history()
+    history.insert(0, entry)
+    history = history[:100]  # Keep the last 100 entries
+    try:
+        with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        add_log("DEBUG", f"Could not save history: {e}")
 
 
 # =====================================================================
@@ -199,7 +231,23 @@ class BrowserManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def clean_stale_locks(self):
+        """Cleans up browser singleton locks left behind by interrupted or crashed instances."""
+        lock_files = ["SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile"]
+        for lock_name in lock_files:
+            p = self.profile_dir / lock_name
+            if p.exists():
+                try:
+                    if p.is_dir():
+                        shutil.rmtree(p, ignore_errors=True)
+                    else:
+                        p.unlink(missing_ok=True)
+                    add_log("DEBUG", f"Removed stale browser lock: {lock_name}")
+                except Exception as e:
+                    add_log("DEBUG", f"Could not remove lock {lock_name}: {e}")
+
     def start(self) -> BrowserContext:
+        self.clean_stale_locks()
         self._playwright = sync_playwright().start()
         browser_exe = find_browser_for_app_window()
 
@@ -411,6 +459,17 @@ class WarRobotsCollector:
         self.platform = self.cfg.get("platform", "android").lower()
         self.market_url = self.cfg.get("market_url", "https://market.my.games/war_robots/")
 
+    def _clear_overlays(self, page: Page):
+        try:
+            page.evaluate("""() => {
+                document.querySelector('#cmpbox')?.remove();
+                document.querySelector('.cmpstyleroot')?.remove();
+                document.querySelector('.styles_vpnDisclaimer__s6IdF')?.remove();
+                document.querySelectorAll('.cookie-banner, [class*="cookie"]').forEach(e => e.remove());
+            }""")
+        except Exception:
+            pass
+
     def collect(self, page: Page) -> Dict[str, Any]:
         result = {"game": self.name, "success": False, "items_collected": [], "message": ""}
         if not self.player_id:
@@ -423,9 +482,23 @@ class WarRobotsCollector:
         try:
             page.goto(self.market_url, wait_until="domcontentloaded", timeout=45000)
             time.sleep(3.0)
+            self._clear_overlays(page)
+
+            # Platform selection (Android / iOS / PC / Steam)
+            target_plat = self.platform.lower()
+            try:
+                for btn in page.query_selector_all('button, [role="tab"], [role="radio"], label, .platform-button'):
+                    txt = (btn.inner_text() or "").strip().lower()
+                    if target_plat in txt or (target_plat == "pc" and "steam" in txt):
+                        btn.scroll_into_view_if_needed()
+                        btn.click()
+                        time.sleep(0.8)
+                        break
+            except Exception:
+                pass
 
             # Enter Pilot ID if input field is present
-            id_input = page.query_selector('input[placeholder*="ID"], input[placeholder*="Pilot"], input[name*="user_id"]')
+            id_input = page.query_selector('input[placeholder*="ID"], input[placeholder*="Pilot"], input[name*="user_id"], input[type="text"]')
             if id_input and id_input.is_visible():
                 if id_input.input_value().strip() != self.player_id:
                     id_input.fill(self.player_id)
@@ -496,11 +569,20 @@ def api_save_config(new_config: ConfigModel):
 def api_get_status():
     sess_dir = SESSIONS_DIR / "mygames_main"
     has_session = sess_dir.exists() and any(sess_dir.iterdir()) if sess_dir.exists() else False
+    cfg = load_config()
+    daemon_enabled = cfg.get("app", {}).get("daemon_enabled", False)
+    interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
+    last_daemon = STATE.get("last_daemon_run", 0)
+    now = time.time()
+    next_run_in = max(0, int(interval_sec - (now - last_daemon))) if (last_daemon > 0 and daemon_enabled) else 0
+
     return {
         "is_running": STATE["is_running"],
         "current_action": STATE["current_action"],
         "has_session": has_session,
-        "last_result": STATE["last_result"]
+        "last_result": STATE["last_result"],
+        "daemon_enabled": daemon_enabled,
+        "next_daemon_run_in": next_run_in
     }
 
 @app.get("/api/logs")
@@ -513,6 +595,120 @@ def api_clear_logs():
     with LOG_LOCK:
         LOG_BUFFER.clear()
     return {"status": "ok"}
+
+@app.get("/api/history")
+def api_get_history():
+    return load_history()
+
+@app.post("/api/history/clear")
+def api_clear_history():
+    if HISTORY_PATH.exists():
+        try:
+            with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+                json.dump([], f)
+        except Exception:
+            pass
+    return {"status": "ok", "message": "History cleared!"}
+
+@app.post("/api/daemon/toggle")
+def api_daemon_toggle():
+    cfg = load_config()
+    current = cfg.get("app", {}).get("daemon_enabled", False)
+    cfg["app"]["daemon_enabled"] = not current
+    save_config(cfg)
+    status_str = "ENABLED" if not current else "DISABLED"
+    add_log("INFO", f"[Daemon] Auto-collection scheduler {status_str}.")
+    return {"status": "ok", "daemon_enabled": not current}
+
+@app.get("/api/rewards/cooldowns")
+def api_get_cooldowns():
+    history = load_history()
+    now = datetime.datetime.now()
+
+    # Rush Royale check: reset on 1st of next month
+    rr_claimed_this_month = False
+    for h in history:
+        if h.get("game") == "Rush Royale" and h.get("status") == "success":
+            try:
+                h_date = datetime.datetime.strptime(h.get("timestamp", "")[:10], "%Y-%m-%d")
+                if h_date.year == now.year and h_date.month == now.month:
+                    rr_claimed_this_month = True
+                    break
+            except Exception:
+                pass
+
+    if now.month == 12:
+        next_month = datetime.datetime(now.year + 1, 1, 1, 0, 0, 0)
+    else:
+        next_month = datetime.datetime(now.year, now.month + 1, 1, 0, 0, 0)
+    rr_seconds = int((next_month - now).total_seconds()) if rr_claimed_this_month else 0
+
+    # War Robots check: daily reset at midnight
+    wr_claimed_today = False
+    today_str = now.strftime("%Y-%m-%d")
+    for h in history:
+        if h.get("game") == "War Robots" and h.get("status") == "success":
+            if str(h.get("timestamp", "")).startswith(today_str):
+                wr_claimed_today = True
+                break
+
+    tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    wr_seconds = int((tomorrow - now).total_seconds()) if wr_claimed_today else 0
+
+    return {
+        "rush_royale": {
+            "claimed": rr_claimed_this_month,
+            "seconds_left": rr_seconds,
+            "title": "10 Summoning Bells",
+            "image_url": "https://static.my.games/market/images/products/24420.png"
+        },
+        "war_robots": {
+            "claimed": wr_claimed_today,
+            "seconds_left": wr_seconds,
+            "title": "Daily Supply Gifts",
+            "image_url": "https://market.my.games/favicon.ico"
+        }
+    }
+
+def verify_mygames_session() -> Dict[str, Any]:
+    """Actively checks if saved cookies in sessions/mygames_main are authorized on MY.GAMES."""
+    sess_dir = SESSIONS_DIR / "mygames_main"
+    if not sess_dir.exists() or not any(sess_dir.iterdir()):
+        return {"authenticated": False, "reason": "No session profile found"}
+
+    try:
+        with BrowserManager(headless=True, session_name="mygames_main") as bm:
+            page = bm.new_page()
+            page.goto("https://market.my.games/", wait_until="domcontentloaded", timeout=20000)
+            time.sleep(2.0)
+
+            login_el = page.query_selector('a[href*="login"], button:has-text("Войти"), button:has-text("Log in"), button:has-text("Sign in")')
+            avatar_el = page.query_selector('.styles_avatarWrapper__Jh7Lq, a[href*="profile"], [class*="avatar"], [class*="userProfile"]')
+
+            is_authed = avatar_el is not None or (login_el is None and "market.my.games" in page.url)
+            return {
+                "authenticated": is_authed,
+                "reason": "Active session verified" if is_authed else "Session expired or logged out"
+            }
+    except Exception as e:
+        return {"authenticated": False, "reason": f"Verification error: {e}"}
+
+@app.get("/api/session/check")
+def api_session_check():
+    return verify_mygames_session()
+
+@app.post("/api/session/logout")
+def api_session_logout():
+    sess_dir = SESSIONS_DIR / "mygames_main"
+    if sess_dir.exists():
+        try:
+            shutil.rmtree(sess_dir, ignore_errors=True)
+            sess_dir.mkdir(parents=True, exist_ok=True)
+            add_log("INFO", "Session cleared. Account logged out.")
+            return {"status": "ok", "message": "Logged out successfully!"}
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"message": f"Logout error: {e}"})
+    return {"status": "ok", "message": "No active session."}
 
 def _run_collection_task(target: str = "all", force_head: bool = False):
     STATE["is_running"] = True
@@ -539,6 +735,21 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
                 if wr_cfg.get("enabled"):
                     r = WarRobotsCollector(wr_cfg, config.get("app", {})).collect(page)
                     results.append(r)
+
+        # Save history for each collected reward
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        for r in results:
+            if r.get("success") and r.get("items_collected"):
+                for itm in r["items_collected"]:
+                    save_history_entry({
+                        "id": int(time.time() * 1000),
+                        "timestamp": now_str,
+                        "game": r["game"],
+                        "item_name": itm if isinstance(itm, str) else itm.get("name", "Reward"),
+                        "image_url": "https://market.my.games/favicon.ico" if r["game"] == "War Robots" else "https://static.my.games/market/images/products/24420.png",
+                        "status": "success",
+                        "message": r["message"]
+                    })
 
         # Send notification report
         lines = ["<b>🎁 Auto Collect MyGames: Report</b>\n"]
@@ -622,6 +833,28 @@ def api_test_notify():
     add_log("INFO", "Test notification sent.")
     return {"status": "ok", "message": "Test notification sent!"}
 
+def daemon_worker():
+    """Lightweight background thread that executes scheduled rewards collection."""
+    while True:
+        try:
+            time.sleep(30)
+            cfg = load_config()
+            daemon_enabled = cfg.get("app", {}).get("daemon_enabled", False)
+            if not daemon_enabled:
+                continue
+
+            interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
+            last_run = STATE.get("last_daemon_run", 0)
+            now = time.time()
+
+            if now - last_run >= interval_sec:
+                if not STATE["is_running"]:
+                    add_log("INFO", "[Daemon] Triggering scheduled rewards collection...")
+                    STATE["last_daemon_run"] = now
+                    _run_collection_task(target="all", force_head=False)
+        except Exception as e:
+            add_log("DEBUG", f"Daemon scheduler loop exception: {e}")
+
 # Mount UI static assets
 if UI_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(UI_DIR)), name="static")
@@ -662,6 +895,7 @@ def start_gui():
     server_cfg = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
     server = uvicorn.Server(server_cfg)
     threading.Thread(target=server.run, daemon=True).start()
+    threading.Thread(target=daemon_worker, daemon=True).start()
 
     if not wait_for_server(app_url, timeout=12.0):
         print("[!] Error: UI Server failed to start in time.")
