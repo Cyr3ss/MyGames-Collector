@@ -631,27 +631,7 @@ def api_get_status():
     last_daemon = STATE.get("last_daemon_run", 0)
     now = time.time()
 
-    next_run_in = 0
-    if daemon_enabled:
-        interval_rem = max(0, int(interval_sec - (now - last_daemon))) if last_daemon > 0 else interval_sec
-        candidates = [interval_rem] if interval_rem > 0 else []
-        try:
-            cd = api_get_cooldowns()
-            rr_cfg = cfg.get("games", {}).get("rush_royale", {})
-            wr_cfg = cfg.get("games", {}).get("war_robots", {})
-            if rr_cfg.get("enabled", True) and not cd["rush_royale"]["claimed"]:
-                candidates.append(0)
-            elif rr_cfg.get("enabled", True) and cd["rush_royale"]["seconds_left"] > 0:
-                candidates.append(cd["rush_royale"]["seconds_left"])
-
-            if wr_cfg.get("enabled", True) and not cd["war_robots"]["claimed"]:
-                candidates.append(0)
-            elif wr_cfg.get("enabled", True) and cd["war_robots"]["seconds_left"] > 0:
-                candidates.append(cd["war_robots"]["seconds_left"])
-        except Exception:
-            pass
-
-        next_run_in = min(candidates) if candidates else interval_sec
+    next_run_in = max(0, int(interval_sec - (now - last_daemon))) if (last_daemon > 0 and daemon_enabled) else (interval_sec if daemon_enabled else 0)
 
     return {
         "is_running": STATE["is_running"],
@@ -694,11 +674,14 @@ def api_clear_history():
 def api_daemon_toggle():
     cfg = load_config()
     current = cfg.get("app", {}).get("daemon_enabled", False)
-    cfg["app"]["daemon_enabled"] = not current
+    new_state = not current
+    cfg["app"]["daemon_enabled"] = new_state
     save_config(cfg)
-    status_str = "ENABLED" if not current else "DISABLED"
+    if new_state:
+        STATE["last_daemon_run"] = time.time()
+    status_str = "ENABLED" if new_state else "DISABLED"
     add_log("INFO", f"[Daemon] Auto-collection scheduler {status_str}.")
-    return {"status": "ok", "daemon_enabled": not current}
+    return {"status": "ok", "daemon_enabled": new_state}
 
 @app.get("/api/rewards/cooldowns")
 def api_get_cooldowns():
@@ -896,6 +879,7 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
                 lines.append(f"   • {itm}")
         notifier.send("\n".join(lines))
         STATE["last_result"] = results
+        STATE["last_daemon_run"] = time.time()
         add_log("SUCCESS", "Reward collection finished!")
     except Exception as e:
         now_time = datetime.datetime.now().strftime("%H:%M")
@@ -974,34 +958,34 @@ def api_test_notify():
     return {"status": "ok", "message": "Test notification sent!"}
 
 def daemon_worker():
-    """Lightweight background thread that executes smart rewards collection (on cooldown expiry + scheduled interval)."""
+    """Background scheduler running on a fixed 12h interval with system wake-up detection."""
+    last_heartbeat = time.time()
     while True:
         try:
-            time.sleep(20)
+            time.sleep(60)  # Check once every minute (0% CPU impact)
+            now = time.time()
+            gap = now - last_heartbeat
+            last_heartbeat = now
+
             cfg = load_config()
             daemon_enabled = cfg.get("app", {}).get("daemon_enabled", False)
             if not daemon_enabled or STATE["is_running"]:
                 continue
 
-            now = time.time()
             interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
             last_run = STATE.get("last_daemon_run", 0)
 
-            # Check if any enabled game reward cooldown has just expired (ready for collection)
-            cd_data = api_get_cooldowns()
-            rr_ready = cfg.get("games", {}).get("rush_royale", {}).get("enabled", True) and not cd_data["rush_royale"]["claimed"]
-            wr_ready = cfg.get("games", {}).get("war_robots", {}).get("enabled", True) and not cd_data["war_robots"]["claimed"]
+            # System wake-up detection:
+            # While the loop was asked to sleep for 60s, if actual gap > 180s (3 min),
+            # it means the computer was suspended or in sleep mode.
+            is_wake_up = gap > 180
 
-            # Guard against rapid retry loops: wait at least 10 minutes between runs
-            min_cooldown_gap = 600
-            should_run_cooldown = (rr_ready or wr_ready) and (now - last_run >= min_cooldown_gap)
-
-            # Scheduled interval fallback (e.g. check every 12 hours)
-            should_run_interval = (now - last_run >= interval_sec)
-
-            if should_run_cooldown or should_run_interval:
-                reason = "Reward cooldown expired" if should_run_cooldown else "Scheduled interval"
-                add_log("INFO", f"[Daemon] Triggering auto-collection ({reason})...")
+            if is_wake_up:
+                add_log("INFO", "[Daemon] Компьютер вышел из спящего режима. Запуск проверки наград...")
+                STATE["last_daemon_run"] = now
+                _run_collection_task(target="all", force_head=False)
+            elif (last_run == 0) or (now - last_run >= interval_sec):
+                add_log("INFO", f"[Daemon] Плановый сбор по расписанию ({int(interval_sec / 3600)}ч)...")
                 STATE["last_daemon_run"] = now
                 _run_collection_task(target="all", force_head=False)
         except Exception as e:
