@@ -58,6 +58,20 @@ if sys.platform == "win32":
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 
+def set_low_process_priority():
+    """Set process priority to BELOW_NORMAL_PRIORITY_CLASS on Windows so games/apps have full priority."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            pid = os.getpid()
+            handle = k32.OpenProcess(0x0200 | 0x0400, False, pid)
+            if handle:
+                k32.SetPriorityClass(handle, 0x4000)  # BELOW_NORMAL_PRIORITY_CLASS
+                k32.CloseHandle(handle)
+        except Exception:
+            pass
+
 # =====================================================================
 #                      LOGGING & IN-MEMORY CONSOLE
 # =====================================================================
@@ -272,6 +286,7 @@ class BrowserManager:
 
     def start(self) -> BrowserContext:
         self.clean_stale_locks()
+        set_low_process_priority()
         self._playwright = sync_playwright().start()
         browser_exe = find_browser_for_app_window()
 
@@ -281,6 +296,8 @@ class BrowserManager:
             "--disable-infobars",
             "--disable-dev-shm-usage"
         ]
+        if self.headless:
+            args.extend(["--disable-gpu", "--renderer-process-limit=2"])
 
         kwargs = {
             "user_data_dir": str(self.profile_dir),
@@ -957,12 +974,50 @@ def api_test_notify():
     add_log("INFO", "Test notification sent.")
     return {"status": "ok", "message": "Test notification sent!"}
 
+def check_is_overdue(cfg: Dict[str, Any]) -> bool:
+    """Checks whether any enabled game has uncollected rewards that are overdue."""
+    try:
+        cd = api_get_cooldowns()
+        games_cfg = cfg.get("games", {})
+
+        # Rush Royale check: overdue if enabled and not claimed in current calendar month
+        if games_cfg.get("rush_royale", {}).get("enabled", True):
+            if not cd.get("rush_royale", {}).get("claimed", False):
+                return True
+
+        # War Robots check: overdue if enabled and not claimed today
+        if games_cfg.get("war_robots", {}).get("enabled", True):
+            if not cd.get("war_robots", {}).get("claimed", False):
+                return True
+
+        return False
+    except Exception as e:
+        add_log("DEBUG", f"Error checking overdue state: {e}")
+        return False
+
 def daemon_worker():
-    """Background scheduler running on a fixed 12h interval with system wake-up detection."""
+    """Background scheduler running with Below Normal CPU priority.
+    Only triggers after system reboot/start, or on PC wake-up IF rewards are overdue.
+    """
+    set_low_process_priority()
     last_heartbeat = time.time()
+
+    # Initial check after full reboot / application start
+    time.sleep(5)
+    try:
+        cfg = load_config()
+        if cfg.get("app", {}).get("daemon_enabled", False):
+            if check_is_overdue(cfg):
+                add_log("INFO", "[Daemon] Запуск после старта системы: найдены несобранные награды (overdue). Сбор...")
+                _run_collection_task(target="all", force_head=False)
+            else:
+                add_log("INFO", "[Daemon] Запуск после старта системы: все награды за текущий период уже собраны. Ожидание.")
+    except Exception as e:
+        add_log("DEBUG", f"Daemon startup check exception: {e}")
+
     while True:
         try:
-            time.sleep(60)  # Check once every minute (0% CPU impact)
+            time.sleep(60)  # Check once per minute with zero CPU impact
             now = time.time()
             gap = now - last_heartbeat
             last_heartbeat = now
@@ -972,22 +1027,27 @@ def daemon_worker():
             if not daemon_enabled or STATE["is_running"]:
                 continue
 
-            interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
-            last_run = STATE.get("last_daemon_run", 0)
-
-            # System wake-up detection:
-            # While the loop was asked to sleep for 60s, if actual gap > 180s (3 min),
-            # it means the computer was suspended or in sleep mode.
+            # Detect wake-up from sleep or hibernate (gap > 3 minutes)
             is_wake_up = gap > 180
 
             if is_wake_up:
-                add_log("INFO", "[Daemon] Компьютер вышел из спящего режима. Запуск проверки наград...")
-                STATE["last_daemon_run"] = now
-                _run_collection_task(target="all", force_head=False)
-            elif (last_run == 0) or (now - last_run >= interval_sec):
-                add_log("INFO", f"[Daemon] Плановый сбор по расписанию ({int(interval_sec / 3600)}ч)...")
-                STATE["last_daemon_run"] = now
-                _run_collection_task(target="all", force_head=False)
+                # System just woke up from sleep or hibernate
+                if check_is_overdue(cfg):
+                    add_log("INFO", "[Daemon] Компьютер вышел из спящего режима: найдены доступные награды (overdue). Запуск сбора...")
+                    _run_collection_task(target="all", force_head=False)
+                else:
+                    add_log("DEBUG", "[Daemon] Компьютер вышел из спящего режима: награды уже собраны за этот период. Сбор не требуется.")
+            else:
+                # Periodic fallback check (e.g. 12h): only collect if overdue!
+                interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
+                last_run = STATE.get("last_daemon_run", 0)
+                if (now - last_run >= interval_sec):
+                    if check_is_overdue(cfg):
+                        add_log("INFO", "[Daemon] Плановый интервал: подошел срок сбора наград (overdue)...")
+                        _run_collection_task(target="all", force_head=False)
+                    else:
+                        STATE["last_daemon_run"] = now
+
         except Exception as e:
             add_log("DEBUG", f"Daemon scheduler loop exception: {e}")
 
@@ -1022,6 +1082,16 @@ def wait_for_server(url: str, timeout: float = 15.0) -> bool:
         except Exception:
             time.sleep(0.25)
     return False
+
+def run_daemon_service():
+    """Runs pure background daemon scheduler without launching any GUI window."""
+    set_low_process_priority()
+    add_log("INFO", "Starting Auto Collect MyGames in Silent Daemon Mode (No GUI)...")
+    port = find_free_port()
+    server_cfg = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(server_cfg)
+    threading.Thread(target=server.run, daemon=True).start()
+    daemon_worker()
 
 def start_gui():
     port = find_free_port()
@@ -1070,12 +1140,15 @@ def main():
     parser.add_argument("--run", choices=["all", "rush_royale", "war_robots"], nargs="?", const="all", help="CLI: Claim rewards")
     parser.add_argument("--login", action="store_true", help="CLI: Authenticate account")
     parser.add_argument("--head", action="store_true", help="CLI: Run with visible browser window")
+    parser.add_argument("--daemon", action="store_true", help="Run background scheduler service without GUI")
     args = parser.parse_args()
 
     if args.run:
         _run_collection_task(args.run, force_head=args.head)
     elif args.login:
         _run_login_task("all")
+    elif args.daemon:
+        run_daemon_service()
     else:
         start_gui()
 
