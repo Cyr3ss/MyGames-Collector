@@ -143,7 +143,7 @@
               <div class="card-body">
                 <div class="form-group" style="margin-bottom: 8px;">
                   <label class="form-label" style="font-size: 11px;" data-i18n="lbl_game_id">Игровой ID (Game ID)</label>
-                  <input type="text" class="input-field" id="dash-rr-player-id" placeholder="Введите ваш ID (например: 40734920)" style="padding: 9px 12px; font-size: 13px;">
+                  <input type="text" class="input-field" id="dash-rr-player-id" data-i18n-ph="ph_dash_rr_id" placeholder="Введите ваш Player ID" style="padding: 9px 12px; font-size: 13px;">
                 </div>
                 <div class="form-group" style="margin-bottom: 12px;">
                   <label class="form-label" style="font-size: 11px;" data-i18n="lbl_platform">Платформа</label>
@@ -187,7 +187,7 @@
               <div class="card-body">
                 <div class="form-group" style="margin-bottom: 8px;">
                   <label class="form-label" style="font-size: 11px;">Pilot ID</label>
-                  <input type="text" class="input-field" id="dash-wr-player-id" placeholder="Введите ваш Pilot ID" style="padding: 9px 12px; font-size: 13px;">
+                  <input type="text" class="input-field" id="dash-wr-player-id" data-i18n-ph="ph_dash_wr_id" placeholder="Введите ваш Pilot ID" style="padding: 9px 12px; font-size: 13px;">
                 </div>
                 <div class="form-group" style="margin-bottom: 12px;">
                   <label class="form-label" style="font-size: 11px;" data-i18n="lbl_platform">Платформа</label>
@@ -365,8 +365,8 @@
               <!-- Daemon Mode Toggle -->
               <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
                 <div>
-                  <div style="font-size: 14px; font-weight: 600; color: #6ee7b7;" data-i18n="cfg_daemon_title">Фоновый авто-сбор (Демон)</div>
-                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_daemon_desc">Периодически собирать награды в фоновом режиме</div>
+                  <div style="font-size: 14px; font-weight: 600; color: #6ee7b7;" data-i18n="cfg_daemon_title">Автоматический сбор по расписанию</div>
+                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_daemon_desc">Регулярно проверять и забирать подарки каждые N часов без вашего участия</div>
                 </div>
                 <label class="switch">
                   <input type="checkbox" id="cfg-daemon-enabled">
@@ -381,8 +381,8 @@
 
               <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <div style="font-size: 14px; font-weight: 600; color: #fff;" data-i18n="cfg_headless_title">Фоновый режим браузера (Headless)</div>
-                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_headless_desc">Браузер работает невидимо без открытия окон</div>
+                  <div style="font-size: 14px; font-weight: 600; color: #fff;" data-i18n="cfg_headless_title">Скрытый режим браузера (Headless)</div>
+                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_headless_desc">Браузер работает невидимо в памяти без всплывающих окон на экране</div>
                 </div>
                 <label class="switch">
                   <input type="checkbox" id="cfg-headless" checked>
@@ -408,12 +408,12 @@
               
               <div class="form-group">
                 <label class="form-label">Rush Royale: Player ID</label>
-                <input type="text" class="input-field" id="cfg-rr-player-id" placeholder="Например: 40734920">
+                <input type="text" class="input-field" id="cfg-rr-player-id" data-i18n-ph="ph_cfg_rr_id" placeholder="Введите Player ID">
               </div>
 
               <div class="form-group">
                 <label class="form-label">War Robots: Pilot ID</label>
-                <input type="text" class="input-field" id="cfg-wr-player-id" placeholder="Например: 7XYZ99">
+                <input type="text" class="input-field" id="cfg-wr-player-id" data-i18n-ph="ph_cfg_wr_id" placeholder="Введите Pilot ID">
               </div>
 
               <div class="form-group">

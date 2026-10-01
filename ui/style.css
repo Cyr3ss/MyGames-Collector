@@ -721,22 +721,36 @@ input:checked + .slider:before {
   text-overflow: ellipsis;
 }
 .cooldown-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(139, 92, 246, 0.2);
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(139, 92, 246, 0.15);
   color: #c4b5fd;
   border: 1px solid rgba(139, 92, 246, 0.3);
   margin-top: 4px;
+  letter-spacing: 0.2px;
+  transition: all 0.2s ease;
 }
 .cooldown-badge.ready {
   background: rgba(16, 185, 129, 0.2);
   color: #6ee7b7;
-  border-color: rgba(16, 185, 129, 0.4);
+  border-color: rgba(16, 185, 129, 0.45);
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
   animation: pulseGlow 2s infinite ease-in-out;
+}
+.cooldown-badge.claimed {
+  background: rgba(139, 92, 246, 0.18);
+  color: #d8b4fe;
+  border-color: rgba(139, 92, 246, 0.38);
+}
+.cooldown-badge.no-rewards {
+  background: rgba(100, 116, 139, 0.18);
+  color: #94a3b8;
+  border-color: rgba(100, 116, 139, 0.3);
 }
 @keyframes pulseGlow {
   0%, 100% { box-shadow: 0 0 6px rgba(16, 185, 129, 0.2); }

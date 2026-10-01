@@ -7,8 +7,11 @@ let lastLogIndex = 0;
 let isPolling = true;
 let currentLanguage = localStorage.getItem("app_lang") || "ru";
 
+let rrCooldownData = null;
+let wrCooldownData = null;
 let rrCooldownSec = 0;
 let wrCooldownSec = 0;
+let wasRunning = false;
 
 // ==========================================================================
 //                           LOCALIZATION (I18N)
@@ -67,11 +70,11 @@ const TRANSLATIONS = {
     cfg_sub: "Редактируйте параметры прямо в окне без ручной правки файлов конфигурации",
     btn_save_cfg: "Сохранить настройки",
     cfg_section_app: "Параметры приложения",
-    cfg_daemon_title: "Фоновый авто-сбор (Демон)",
-    cfg_daemon_desc: "Периодически собирать награды в фоновом режиме",
+    cfg_daemon_title: "Автоматический сбор по расписанию",
+    cfg_daemon_desc: "Регулярно собирать подарки в фоне каждые N часов без вашего участия",
     cfg_lbl_interval: "Интервал проверки (в часах)",
-    cfg_headless_title: "Фоновый режим браузера (Headless)",
-    cfg_headless_desc: "Браузер работает невидимо без открытия окон",
+    cfg_headless_title: "Скрытый режим браузера (Headless)",
+    cfg_headless_desc: "Браузер работает невидимо в памяти без всплывающих окон на экране",
     cfg_shot_title: "Скриншот при ошибке",
     cfg_shot_desc: "Сохранять снимок экрана в папку logs/screenshots",
     cfg_section_games: "Игровые профили",
@@ -82,12 +85,21 @@ const TRANSLATIONS = {
     btn_copy_logs: "Скопировать логи",
     btn_clear_logs: "Очистить",
     status_ready: "СИСТЕМА ГОТОВА",
+    status_collecting: "ИДЕТ СБОР НАГРАД...",
+    status_auth_waiting: "ОЖИДАНИЕ ВХОДА В БРАУЗЕРЕ...",
     status_authed: "Авторизован ✅",
     status_need_auth: "Требуется вход ⚠️",
     daemon_on: "ДЕМОН: ВКЛ",
     daemon_off: "ДЕМОН: ВЫКЛ",
     ready_to_claim: "Готово к сбору! 🎁",
-    cooldown_prefix: "Доступно через: "
+    badge_claimed: "Собрано ✓",
+    badge_no_rewards: "Нет наград",
+    cooldown_word: "Откат: ",
+    cooldown_prefix: "Доступно через: ",
+    ph_dash_rr_id: "Введите ваш Player ID",
+    ph_dash_wr_id: "Введите ваш Pilot ID",
+    ph_cfg_rr_id: "Введите Player ID",
+    ph_cfg_wr_id: "Введите Pilot ID"
   },
   en: {
     nav_label: "Navigation",
@@ -141,11 +153,11 @@ const TRANSLATIONS = {
     cfg_sub: "Configure options in GUI without editing configuration files manually",
     btn_save_cfg: "Save Settings",
     cfg_section_app: "Application Settings",
-    cfg_daemon_title: "Background Scheduler (Daemon)",
-    cfg_daemon_desc: "Periodically check and claim rewards in background",
+    cfg_daemon_title: "Scheduled Auto-Collection",
+    cfg_daemon_desc: "Periodically check and claim rewards in background without manual interaction",
     cfg_lbl_interval: "Check Interval (hours)",
-    cfg_headless_title: "Headless Browser Mode",
-    cfg_headless_desc: "Runs browser invisibly without showing windows",
+    cfg_headless_title: "Silent Browser Mode (Headless)",
+    cfg_headless_desc: "Browser runs silently in memory without popping up windows on screen",
     cfg_shot_title: "Screenshot on Failure",
     cfg_shot_desc: "Save debug screenshot to logs/screenshots on error",
     cfg_section_games: "Game Profiles",
@@ -156,12 +168,21 @@ const TRANSLATIONS = {
     btn_copy_logs: "Copy Logs",
     btn_clear_logs: "Clear",
     status_ready: "SYSTEM READY",
+    status_collecting: "COLLECTING REWARDS...",
+    status_auth_waiting: "AWAITING BROWSER LOGIN...",
     status_authed: "Authorized ✅",
     status_need_auth: "Login Required ⚠️",
     daemon_on: "DAEMON: ON",
     daemon_off: "DAEMON: OFF",
     ready_to_claim: "Ready to Claim! 🎁",
-    cooldown_prefix: "Available in: "
+    badge_claimed: "Claimed ✓",
+    badge_no_rewards: "No gifts",
+    cooldown_word: "Cooldown: ",
+    cooldown_prefix: "Available in: ",
+    ph_dash_rr_id: "Enter your Player ID",
+    ph_dash_wr_id: "Enter your Pilot ID",
+    ph_cfg_rr_id: "Enter Player ID",
+    ph_cfg_wr_id: "Enter Pilot ID"
   }
 };
 
@@ -174,6 +195,13 @@ function applyLanguage() {
     const key = el.getAttribute("data-i18n");
     if (key && TRANSLATIONS[currentLanguage][key]) {
       el.innerHTML = TRANSLATIONS[currentLanguage][key];
+    }
+  });
+
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => {
+    const key = el.getAttribute("data-i18n-ph");
+    if (key && TRANSLATIONS[currentLanguage][key]) {
+      el.placeholder = TRANSLATIONS[currentLanguage][key];
     }
   });
 
@@ -397,15 +425,17 @@ document.getElementById("btn-promo-submit")?.addEventListener("click", () => {
 //                           COOLDOWNS & TIMERS
 // ==========================================================================
 
-function formatTime(seconds) {
+function formatTime(seconds, short = false) {
   if (seconds <= 0) return t("ready_to_claim");
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
 
-  if (d > 0) return `${t("cooldown_prefix")}${d}d ${h}h ${m}m`;
-  return `${t("cooldown_prefix")}${h}h ${m}m ${s}s`;
+  const prefix = short ? "" : t("cooldown_prefix");
+  if (d > 0) return `${prefix}${d}d ${h}h`;
+  if (h > 0) return `${prefix}${h}h ${m}m`;
+  return `${prefix}${m}m ${s}s`;
 }
 
 function updateCooldownDisplay() {
@@ -413,22 +443,29 @@ function updateCooldownDisplay() {
   const wrBadge = document.getElementById("wr-cooldown-badge");
 
   if (rrBadge) {
-    if (rrCooldownSec <= 0) {
+    if (rrCooldownSec <= 0 || !rrCooldownData?.claimed) {
       rrBadge.innerText = t("ready_to_claim");
       rrBadge.className = "cooldown-badge ready";
     } else {
-      rrBadge.innerText = formatTime(rrCooldownSec);
-      rrBadge.className = "cooldown-badge";
+      const cdStr = formatTime(rrCooldownSec, true);
+      rrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
+      rrBadge.className = "cooldown-badge claimed";
     }
   }
 
   if (wrBadge) {
-    if (wrCooldownSec <= 0) {
+    if (wrCooldownSec <= 0 || !wrCooldownData?.claimed) {
       wrBadge.innerText = t("ready_to_claim");
       wrBadge.className = "cooldown-badge ready";
     } else {
-      wrBadge.innerText = formatTime(wrCooldownSec);
-      wrBadge.className = "cooldown-badge";
+      const cdStr = formatTime(wrCooldownSec, true);
+      if (wrCooldownData?.status === "no_rewards") {
+        wrBadge.innerText = `${t("badge_no_rewards")} (${t("cooldown_word")}${cdStr})`;
+        wrBadge.className = "cooldown-badge no-rewards";
+      } else {
+        wrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
+        wrBadge.className = "cooldown-badge claimed";
+      }
     }
   }
 }
@@ -438,6 +475,8 @@ async function fetchCooldowns() {
     const res = await fetch("/api/rewards/cooldowns");
     if (res.ok) {
       const data = await res.json();
+      rrCooldownData = data.rush_royale || null;
+      wrCooldownData = data.war_robots || null;
       rrCooldownSec = data.rush_royale?.seconds_left || 0;
       wrCooldownSec = data.war_robots?.seconds_left || 0;
       updateCooldownDisplay();
@@ -625,17 +664,44 @@ async function pollStatusAndLogs() {
       const daemonPill = document.getElementById("daemon-status-pill");
       const daemonText = document.getElementById("daemon-status-text");
 
+      // Auto-refresh badges & history when a background run finishes
+      if (wasRunning && !status.is_running) {
+        fetchCooldowns();
+        loadHistory();
+      }
+      wasRunning = status.is_running;
+
       // System running status
       if (status.is_running) {
         statusPill.style.background = "rgba(245, 158, 11, 0.15)";
         statusPill.style.borderColor = "rgba(245, 158, 11, 0.4)";
         statusPill.style.color = "#fde047";
-        statusText.innerText = status.current_action.toUpperCase();
+        if ((status.current_action || "").toLowerCase().includes("auth")) {
+          statusText.innerText = t("status_auth_waiting");
+        } else if ((status.current_action || "").toLowerCase().includes("collect")) {
+          statusText.innerText = t("status_collecting");
+        } else {
+          statusText.innerText = status.current_action.toUpperCase();
+        }
       } else {
-        statusPill.style.background = "rgba(16, 185, 129, 0.1)";
-        statusPill.style.borderColor = "rgba(16, 185, 129, 0.25)";
-        statusPill.style.color = "#6ee7b7";
-        statusText.innerText = t("status_ready");
+        const summary = currentLanguage === "ru" ? status.last_run_summary_ru : status.last_run_summary_en;
+        if (summary) {
+          statusText.innerText = summary;
+          if (status.last_run_status === "error") {
+            statusPill.style.background = "rgba(239, 68, 68, 0.15)";
+            statusPill.style.borderColor = "rgba(239, 68, 68, 0.35)";
+            statusPill.style.color = "#fca5a5";
+          } else {
+            statusPill.style.background = "rgba(16, 185, 129, 0.12)";
+            statusPill.style.borderColor = "rgba(16, 185, 129, 0.28)";
+            statusPill.style.color = "#6ee7b7";
+          }
+        } else {
+          statusPill.style.background = "rgba(16, 185, 129, 0.1)";
+          statusPill.style.borderColor = "rgba(16, 185, 129, 0.25)";
+          statusPill.style.color = "#6ee7b7";
+          statusText.innerText = t("status_ready");
+        }
       }
 
       // Daemon status

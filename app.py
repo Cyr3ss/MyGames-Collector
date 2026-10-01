@@ -39,6 +39,7 @@ CONFIG_PATH = BASE_DIR / "config.yaml"
 SESSIONS_DIR = BASE_DIR / "sessions"
 LOGS_DIR = BASE_DIR / "logs"
 HISTORY_PATH = BASE_DIR / "history.json"
+LAST_CHECKS_PATH = BASE_DIR / "last_checks.json"
 UI_DIR = BUNDLE_DIR / "ui" if (BUNDLE_DIR / "ui").exists() else BASE_DIR / "ui"
 
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -153,6 +154,29 @@ def save_history_entry(entry: Dict[str, Any]):
             json.dump(history, f, ensure_ascii=False, indent=2)
     except Exception as e:
         add_log("DEBUG", f"Could not save history: {e}")
+
+def load_last_checks() -> Dict[str, Any]:
+    if not LAST_CHECKS_PATH.exists():
+        return {}
+    try:
+        with open(LAST_CHECKS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_last_check(game: str, status_type: str, message: str, items: list = None):
+    checks = load_last_checks()
+    checks[game] = {
+        "status_type": status_type,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "message": message,
+        "items": items or []
+    }
+    try:
+        with open(LAST_CHECKS_PATH, "w", encoding="utf-8") as f:
+            json.dump(checks, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        add_log("DEBUG", f"Could not save last checks: {e}")
 
 
 # =====================================================================
@@ -440,11 +464,14 @@ class RushRoyaleCollector:
             result["success"] = True
             if result["items_collected"]:
                 result["message"] = f"Successfully collected rewards: {len(result['items_collected'])}"
+                result["status_type"] = "collected"
             else:
                 result["message"] = "All available free rewards have already been collected."
+                result["status_type"] = "already_claimed"
             add_log("SUCCESS" if result["items_collected"] else "INFO", f"[{self.name}] {result['message']}")
         except Exception as e:
             result["success"] = False
+            result["status_type"] = "error"
             result["message"] = f"Collection error: {e}"
             add_log("ERROR", f"[{self.name}] {result['message']}")
 
@@ -524,10 +551,16 @@ class WarRobotsCollector:
                     pass
 
             result["success"] = True
-            result["message"] = f"Successfully collected gifts: {claimed}" if claimed > 0 else "No free rewards available at this time (or already collected)."
+            if claimed > 0:
+                result["message"] = f"Successfully collected gifts: {claimed}"
+                result["status_type"] = "collected"
+            else:
+                result["message"] = "No free rewards available at this time (or already collected)."
+                result["status_type"] = "no_rewards"
             add_log("SUCCESS" if claimed > 0 else "INFO", f"[{self.name}] {result['message']}")
         except Exception as e:
             result["success"] = False
+            result["status_type"] = "error"
             result["message"] = f"Collection error: {e}"
             add_log("ERROR", f"[{self.name}] {result['message']}")
 
@@ -544,8 +577,31 @@ STATE = {
     "is_running": False,
     "current_action": "idle",
     "stop_login": False,
-    "last_result": None
+    "last_result": None,
+    "last_run_summary_ru": None,
+    "last_run_summary_en": None,
+    "last_run_status": None
 }
+
+def init_last_run_state():
+    checks = load_last_checks()
+    if checks:
+        latest_ts = ""
+        for c in checks.values():
+            ts = c.get("timestamp", "")
+            if ts > latest_ts:
+                latest_ts = ts
+        if latest_ts:
+            try:
+                t_obj = datetime.datetime.strptime(latest_ts, "%Y-%m-%d %H:%M:%S")
+                time_str = t_obj.strftime("%H:%M")
+                STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {time_str} (ПРОВЕРЕНО ✓)"
+                STATE["last_run_summary_en"] = f"LAST RUN: {time_str} (VERIFIED ✓)"
+                STATE["last_run_status"] = "success"
+            except Exception:
+                pass
+
+init_last_run_state()
 
 class ConfigModel(BaseModel):
     app: Dict[str, Any]
@@ -581,6 +637,9 @@ def api_get_status():
         "current_action": STATE["current_action"],
         "has_session": has_session,
         "last_result": STATE["last_result"],
+        "last_run_summary_ru": STATE.get("last_run_summary_ru"),
+        "last_run_summary_en": STATE.get("last_run_summary_en"),
+        "last_run_status": STATE.get("last_run_status"),
         "daemon_enabled": daemon_enabled,
         "next_daemon_run_in": next_run_in
     }
@@ -623,6 +682,7 @@ def api_daemon_toggle():
 @app.get("/api/rewards/cooldowns")
 def api_get_cooldowns():
     history = load_history()
+    last_checks = load_last_checks()
     now = datetime.datetime.now()
 
     # Rush Royale check: reset on 1st of next month
@@ -637,6 +697,16 @@ def api_get_cooldowns():
             except Exception:
                 pass
 
+    rr_check = last_checks.get("Rush Royale", {})
+    if not rr_claimed_this_month and rr_check:
+        try:
+            c_date = datetime.datetime.strptime(rr_check.get("timestamp", "")[:10], "%Y-%m-%d")
+            if c_date.year == now.year and c_date.month == now.month:
+                if rr_check.get("status_type") in ("collected", "already_claimed"):
+                    rr_claimed_this_month = True
+        except Exception:
+            pass
+
     if now.month == 12:
         next_month = datetime.datetime(now.year + 1, 1, 1, 0, 0, 0)
     else:
@@ -645,24 +715,41 @@ def api_get_cooldowns():
 
     # War Robots check: daily reset at midnight
     wr_claimed_today = False
+    wr_status_type = "ready"
     today_str = now.strftime("%Y-%m-%d")
+
     for h in history:
         if h.get("game") == "War Robots" and h.get("status") == "success":
             if str(h.get("timestamp", "")).startswith(today_str):
                 wr_claimed_today = True
+                wr_status_type = "collected"
                 break
+
+    wr_check = last_checks.get("War Robots", {})
+    if wr_check and str(wr_check.get("timestamp", "")).startswith(today_str):
+        if wr_check.get("status_type") == "collected":
+            wr_claimed_today = True
+            wr_status_type = "collected"
+        elif wr_check.get("status_type") == "no_rewards":
+            wr_claimed_today = True
+            wr_status_type = "no_rewards"
+        elif wr_check.get("status_type") == "already_claimed":
+            wr_claimed_today = True
+            wr_status_type = "already_claimed"
 
     tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     wr_seconds = int((tomorrow - now).total_seconds()) if wr_claimed_today else 0
 
     return {
         "rush_royale": {
+            "status": "already_claimed" if rr_claimed_this_month else "ready",
             "claimed": rr_claimed_this_month,
             "seconds_left": rr_seconds,
             "title": "10 Summoning Bells",
             "image_url": "https://static.my.games/market/images/products/24420.png"
         },
         "war_robots": {
+            "status": wr_status_type,
             "claimed": wr_claimed_today,
             "seconds_left": wr_seconds,
             "title": "Daily Supply Gifts",
@@ -751,6 +838,34 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
                         "message": r["message"]
                     })
 
+        # Save last checks for each game (tracks cooldowns even when 0 gifts available or already claimed)
+        for r in results:
+            st = r.get("status_type", "collected" if r.get("items_collected") else ("already_claimed" if r.get("success") else "error"))
+            save_last_check(
+                game=r["game"],
+                status_type=st,
+                message=r.get("message", ""),
+                items=r.get("items_collected", [])
+            )
+
+        # Update last run summary for the top status pill
+        total_collected = sum(len(r.get("items_collected", [])) for r in results)
+        any_errors = any(not r.get("success", False) for r in results)
+        now_time = datetime.datetime.now().strftime("%H:%M")
+
+        if any_errors:
+            STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (ОШИБКА ⚠️)"
+            STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (ERROR ⚠️)"
+            STATE["last_run_status"] = "error"
+        elif total_collected > 0:
+            STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (СОБРАНО: {total_collected} ✓)"
+            STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (COLLECTED: {total_collected} ✓)"
+            STATE["last_run_status"] = "success"
+        else:
+            STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (НАГРАДЫ УЖЕ ЗАБРАНЫ ✓)"
+            STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (ALL REWARDS CLAIMED ✓)"
+            STATE["last_run_status"] = "success"
+
         # Send notification report
         lines = ["<b>🎁 Auto Collect MyGames: Report</b>\n"]
         for r in results:
@@ -762,6 +877,10 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
         STATE["last_result"] = results
         add_log("SUCCESS", "Reward collection finished!")
     except Exception as e:
+        now_time = datetime.datetime.now().strftime("%H:%M")
+        STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (ОШИБКА ⚠️)"
+        STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (ERROR ⚠️)"
+        STATE["last_run_status"] = "error"
         add_log("ERROR", f"Critical error during collection: {e}")
     finally:
         STATE["is_running"] = False

@@ -24,7 +24,7 @@
 
 | Game | Collectibles | Player Identification |
 | :--- | :--- | :--- |
-| **Rush Royale** | Free summoning bells (10 bells/month), seasonal gifts, promotional item packs | In-game Player ID (e.g. `40734920`) |
+| **Rush Royale** | Free summoning bells (10 bells/month), seasonal gifts, promotional item packs | In-game Player ID (e.g. `12345678`) |
 | **War Robots** | Daily free gifts, currency, supplies | Pilot ID & Platform selection (Android / iOS / Steam) |
 
 ---
