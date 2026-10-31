@@ -46,12 +46,8 @@ const TRANSLATIONS = {
     hist_empty_desc: "Нажмите «Забрать все награды» на главной панели, чтобы пополнить журнал!",
     promo_title: "Активация промокодов",
     promo_sub: "Автоматический ввод промо-кодов для ваших игр в один клик",
-    promo_badge: "СКОРО В ОБНОВЛЕНИИ V2.0",
-    promo_card_title: "Универсальный активатор промокодов",
-    promo_card_desc: "Мы разрабатываем модуль автоматического распознавания и применения секретных промокодов для War Robots без необходимости открывать игру.",
-    promo_lbl_game: "Выберите игру",
     promo_lbl_code: "Промокод",
-    promo_btn_submit: "Активировать промокод (В разработке)",
+    promo_btn_submit: "Активировать промокод",
     auth_title: "Авторизация в MY.GAMES",
     auth_sub: "Безопасный вход через браузер без передачи паролей сторонним скриптам",
     btn_check_session: "Проверить сессию",
@@ -126,12 +122,8 @@ const TRANSLATIONS = {
     hist_empty_desc: "Click 'Claim All Rewards' on the dashboard to populate your history log!",
     promo_title: "Promo Code Redemption",
     promo_sub: "Automated one-click promo code activator across games",
-    promo_badge: "COMING IN V2.0",
-    promo_card_title: "Universal Promo Code Activator",
-    promo_card_desc: "We are developing an automated code redemption module for War Robots without launching the games.",
-    promo_lbl_game: "Select Game",
     promo_lbl_code: "Promo Code",
-    promo_btn_submit: "Redeem Promo Code (In Development)",
+    promo_btn_submit: "Redeem Promo Code",
     auth_title: "MY.GAMES Authentication",
     auth_sub: "Secure login via standard browser window without sharing credentials",
     btn_check_session: "Verify Session",
@@ -398,7 +390,12 @@ document.getElementById("btn-clear-history")?.addEventListener("click", async ()
 
 // Promo codes submit
 document.getElementById("btn-promo-submit")?.addEventListener("click", () => {
-  showToast(currentLanguage === "ru" ? "Функция промокодов появится в версии 2.0!" : "Promo codes module coming in v2.0!", "info");
+  const code = document.getElementById("promo-input-code")?.value.trim();
+  if (!code) {
+    showToast(currentLanguage === "ru" ? "Введите промокод!" : "Please enter a promo code!", "error");
+    return;
+  }
+  showToast(currentLanguage === "ru" ? "Активация промокодов в процессе интеграции..." : "Promo code redemption integration in progress...", "info");
 });
 
 // ==========================================================================

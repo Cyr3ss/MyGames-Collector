@@ -222,29 +222,13 @@
           </div>
 
           <div class="glass-card promocode-card">
-            <div class="coming-soon-banner">
-              <span>⚡</span> <span data-i18n="promo_badge">СКОРО В ОБНОВЛЕНИИ V2.0</span>
-            </div>
-
-            <h3 style="font-size: 18px; margin-bottom: 8px; color: #fff;" data-i18n="promo_card_title">Универсальный активатор промокодов</h3>
-            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;" data-i18n="promo_card_desc">
-              Мы разрабатываем модуль автоматического распознавания и применения секретных промокодов для War Robots без необходимости открывать игру.
-            </p>
-
-            <div class="form-group">
-              <label class="form-label" data-i18n="promo_lbl_game">Выберите игру</label>
-              <select class="select-field" id="promo-game-select">
-                <option value="war_robots">War Robots</option>
-              </select>
-            </div>
-
             <div class="form-group">
               <label class="form-label" data-i18n="promo_lbl_code">Промокод</label>
-              <input type="text" class="input-field" placeholder="Например: WR-ROBOTS-2026" style="text-transform: uppercase;">
+              <input type="text" class="input-field" id="promo-input-code" placeholder="Например: WR-ROBOTS-2026" style="text-transform: uppercase;">
             </div>
 
-            <button class="btn btn-secondary btn-full" style="opacity: 0.6; cursor: not-allowed;" id="btn-promo-submit">
-              <span>🚀</span> <span data-i18n="promo_btn_submit">Активировать промокод (В разработке)</span>
+            <button class="btn btn-primary btn-full" id="btn-promo-submit">
+              <span>🚀</span> <span data-i18n="promo_btn_submit">Активировать промокод</span>
             </button>
           </div>
         </section>

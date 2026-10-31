@@ -186,6 +186,38 @@ def save_last_check(game: str, status_type: str, message: str, items: list = Non
     except Exception as e:
         add_log("DEBUG", f"Could not save last checks: {e}")
 
+CLAIMS_LOG_PATH = LOGS_DIR / "claims.log"
+CLAIMS_JSONL_PATH = LOGS_DIR / "claims.jsonl"
+
+def log_claim_event(game: str, pilot_id: str, status_type: str, item_name: str, message: str, trigger_source: str = "manual"):
+    """Appends claim events with timestamps to logs/claims.log and claims.jsonl for reset timing analysis."""
+    now = datetime.datetime.now()
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    unix_ts = int(time.time())
+
+    line = f"[{now_str} | unix:{unix_ts}] [{status_type.upper()}] [{game}] Pilot: {pilot_id} | Item: {item_name} | Trigger: {trigger_source} | Message: {message}\n"
+    try:
+        with open(CLAIMS_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception as e:
+        add_log("DEBUG", f"Could not write to claims.log: {e}")
+
+    try:
+        entry = {
+            "timestamp": now_str,
+            "unix_timestamp": unix_ts,
+            "game": game,
+            "pilot_id": pilot_id,
+            "status_type": status_type,
+            "item_name": item_name,
+            "trigger_source": trigger_source,
+            "message": message
+        }
+        with open(CLAIMS_JSONL_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        add_log("DEBUG", f"Could not write to claims.jsonl: {e}")
+
 
 # =====================================================================
 #                      DYNAMIC BROWSER FINDER
@@ -693,7 +725,7 @@ def api_session_logout():
             return JSONResponse(status_code=500, content={"message": f"Logout error: {e}"})
     return {"status": "ok", "message": "No active session."}
 
-def _run_collection_task(target: str = "all", force_head: bool = False):
+def _run_collection_task(target: str = "all", force_head: bool = False, trigger_source: str = "manual"):
     STATE["is_running"] = True
     STATE["current_action"] = f"Collecting rewards ({target})"
     add_log("INFO", f"=== STARTING REWARD COLLECTION ({target}) ===")
@@ -728,7 +760,8 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
                         "message": r["message"]
                     })
 
-        # Save last checks for each game (tracks cooldowns even when 0 gifts available or already claimed)
+        # Save last checks for each game and log exact timestamps for analysis
+        pilot_id = config.get("games", {}).get("war_robots", {}).get("player_id", "")
         for r in results:
             st = r.get("status_type", "collected" if r.get("items_collected") else ("already_claimed" if r.get("success") else "error"))
             save_last_check(
@@ -736,6 +769,15 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
                 status_type=st,
                 message=r.get("message", ""),
                 items=r.get("items_collected", [])
+            )
+            items_str = ", ".join(r.get("items_collected", [])) if r.get("items_collected") else "None"
+            log_claim_event(
+                game=r["game"],
+                pilot_id=pilot_id,
+                status_type=st,
+                item_name=items_str,
+                message=r.get("message", ""),
+                trigger_source=trigger_source
             )
 
         # Update last run summary for the top status pill
@@ -781,7 +823,7 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
 def api_action_collect(target: str = "all", force_head: bool = False):
     if STATE["is_running"]:
         return JSONResponse(status_code=400, content={"message": "Operation already in progress!"})
-    threading.Thread(target=_run_collection_task, args=(target, force_head), daemon=True).start()
+    threading.Thread(target=_run_collection_task, args=(target, force_head, "gui"), daemon=True).start()
     return {"status": "started", "message": "Reward collection started!"}
 
 def _run_login_task(target: str):
@@ -873,7 +915,7 @@ def daemon_worker():
         if cfg.get("app", {}).get("daemon_enabled", False):
             if check_is_overdue(cfg):
                 add_log("INFO", "[Daemon] Запуск после старта системы: найдены несобранные награды (overdue). Сбор...")
-                _run_collection_task(target="all", force_head=False)
+                _run_collection_task(target="all", force_head=False, trigger_source="daemon_startup")
             else:
                 add_log("INFO", "[Daemon] Запуск после старта системы: все награды за текущий период уже собраны. Ожидание.")
     except Exception as e:
@@ -898,7 +940,7 @@ def daemon_worker():
                 # System just woke up from sleep or hibernate
                 if check_is_overdue(cfg):
                     add_log("INFO", "[Daemon] Компьютер вышел из спящего режима: найдены доступные награды (overdue). Запуск сбора...")
-                    _run_collection_task(target="all", force_head=False)
+                    _run_collection_task(target="all", force_head=False, trigger_source="daemon_wakeup")
                 else:
                     add_log("DEBUG", "[Daemon] Компьютер вышел из спящего режима: награды уже собраны за этот период. Сбор не требуется.")
             else:
@@ -908,7 +950,7 @@ def daemon_worker():
                 if (now - last_run >= interval_sec):
                     if check_is_overdue(cfg):
                         add_log("INFO", "[Daemon] Плановый интервал: подошел срок сбора наград (overdue)...")
-                        _run_collection_task(target="all", force_head=False)
+                        _run_collection_task(target="all", force_head=False, trigger_source="daemon_interval")
                     else:
                         STATE["last_daemon_run"] = now
 
@@ -1009,7 +1051,7 @@ def main():
     args = parser.parse_args()
 
     if args.run:
-        _run_collection_task(args.run, force_head=args.head)
+        _run_collection_task(args.run, force_head=args.head, trigger_source="cli")
     elif args.login:
         _run_login_task("all")
     elif args.daemon:
