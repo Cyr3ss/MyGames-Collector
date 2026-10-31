@@ -988,6 +988,7 @@ def start_gui():
         try:
             proc = subprocess.Popen(cmd)
             proc.wait()
+            os._exit(0)
         except Exception:
             webbrowser.open(app_url)
     else:
@@ -996,7 +997,7 @@ def start_gui():
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            pass
+            os._exit(0)
 
 def main():
     import argparse
