@@ -15,17 +15,16 @@
 
 ### ⚠️ Disclaimer
 > This project is a **purely amateur hobby/pet-project**, created exclusively for personal use and friends.
-> The program only includes **games that the author personally plays** (currently: **Rush Royale** and **War Robots**).
-> This project is unofficial, not affiliated with, endorsed by, or sponsored by MY.GAMES or the respective game developers. All product names, logos, and brands are property of their respective owners.
+> The program only includes **games that the author personally plays** (currently: **War Robots**).
+> This project is unofficial, not affiliated with, endorsed by, or sponsored by MY.GAMES, Pixonic, or the respective game developers. All product names, logos, and brands are property of their respective owners.
 
 ---
 
 ## 🎮 Supported Games
 
-| Game | Collectibles | Player Identification |
-| :--- | :--- | :--- |
-| **Rush Royale** | Free summoning bells (10 bells/month), seasonal gifts, promotional item packs | In-game Player ID (e.g. `12345678`) |
-| **War Robots** | Daily free gifts, currency, supplies | Pilot ID & Platform selection (Android / iOS / Steam) |
+| Game | Collectibles | Player Identification | Web Store |
+| :--- | :--- | :--- | :--- |
+| **War Robots** | Daily Free Gifts (Data Pads, Silver, keys & resources) | Pilot ID (Cross-platform: Android / iOS / Steam / PC) | Official Shop (`shop.warrobots.com`) |
 
 ---
 

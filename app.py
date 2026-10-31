@@ -107,17 +107,11 @@ DEFAULT_CONFIG = {
         "discord": {"enabled": False, "webhook_url": ""}
     },
     "games": {
-        "rush_royale": {
-            "enabled": True,
-            "player_id": "",
-            "platform": "android",
-            "market_url": "https://market.my.games/rush_royale?content=items"
-        },
         "war_robots": {
             "enabled": True,
             "player_id": "",
-            "platform": "android",
-            "market_url": "https://market.my.games/war_robots/"
+            "platform": "crossplay",
+            "market_url": "https://shop.warrobots.com/"
         }
     }
 }
@@ -363,147 +357,25 @@ class Notifier:
 #                      GAME REWARD COLLECTORS
 # =====================================================================
 
-class RushRoyaleCollector:
-    def __init__(self, game_cfg: Dict[str, Any], app_cfg: Dict[str, Any]):
-        self.name = "Rush Royale"
-        self.cfg = game_cfg
-        self.player_id = str(self.cfg.get("player_id", "")).strip()
-        self.platform = self.cfg.get("platform", "Android").capitalize()
-        self.market_url = self.cfg.get("market_url", "https://market.my.games/rush_royale?content=items")
-
-    def _clear_overlays(self, page: Page):
-        try:
-            page.evaluate("""() => {
-                document.querySelector('#cmpbox')?.remove();
-                document.querySelector('.cmpstyleroot')?.remove();
-                document.querySelector('.styles_vpnDisclaimer__s6IdF')?.remove();
-                document.querySelectorAll('.cookie-banner, [class*="cookie"]').forEach(e => e.remove());
-            }""")
-        except Exception:
-            pass
-
-    def _handle_enter_details(self, page: Page):
-        time.sleep(1.0)
-        self._clear_overlays(page)
-
-        # 1. Platform selection
-        try:
-            plat_btn = page.query_selector(f'button:has-text("{self.platform}")')
-            if plat_btn and plat_btn.is_visible():
-                plat_btn.click()
-                time.sleep(0.5)
-        except Exception:
-            pass
-
-        # 2. Player ID
-        if self.player_id:
-            try:
-                chip = page.query_selector(f'span:has-text("{self.player_id}"), div:has-text("{self.player_id}")')
-                if chip and chip.is_visible():
-                    chip.click()
-                else:
-                    inp = page.query_selector('input[type="text"], input:not([type="hidden"])')
-                    if inp and inp.is_visible():
-                        if inp.input_value().strip() != self.player_id:
-                            inp.fill(self.player_id)
-                time.sleep(1.0)
-            except Exception:
-                pass
-
-        # 3. Continue button
-        try:
-            cnt_btn = page.query_selector('button:has-text("Continue"), button:has-text("Продолжить")')
-            if cnt_btn and cnt_btn.is_visible():
-                cnt_btn.click()
-                time.sleep(3.0)
-        except Exception:
-            pass
-
-    def collect(self, page: Page) -> Dict[str, Any]:
-        result = {"game": self.name, "success": False, "items_collected": [], "message": ""}
-        if not self.player_id:
-            msg = "Player ID not specified! Please enter your ID in Rush Royale card."
-            add_log("WARNING", f"[{self.name}] {msg}")
-            result["message"] = msg
-            return result
-
-        # 1. Permanent free items (ID 24420: 10 Summoning Bells)
-        prod_url = "https://market.my.games/rush_royale?content=items&product_id=24420"
-        try:
-            add_log("INFO", f"[{self.name}] Checking '10 Summoning Bells'...")
-            page.goto(prod_url, wait_until="domcontentloaded", timeout=45000)
-            time.sleep(2.5)
-            self._clear_overlays(page)
-
-            btn = page.query_selector('button:has-text("Получить"), button:has-text("Бесплатно"), button:has-text("Claim"), button:has-text("Free")')
-            if btn and btn.is_visible():
-                btn_text = btn.inner_text().strip().lower()
-                if "получено" not in btn_text and "claimed" not in btn_text:
-                    btn.click()
-                    time.sleep(1.5)
-                    self._handle_enter_details(page)
-                    result["items_collected"].append("10 Summoning Bells (Limited Edition)")
-                    add_log("SUCCESS", f"[{self.name}] Claimed: 10 Summoning Bells!")
-                else:
-                    add_log("INFO", f"[{self.name}] 10 Summoning Bells already claimed previously.")
-        except Exception as e:
-            add_log("DEBUG", f"Error checking product 24420: {e}")
-
-        # 2. Scan store showcase for other promotional items
-        try:
-            page.goto("https://market.my.games/rush_royale?content=items", wait_until="domcontentloaded", timeout=45000)
-            time.sleep(2.5)
-            self._clear_overlays(page)
-            page.evaluate("window.scrollTo(0, 700)")
-            time.sleep(1.0)
-
-            free_btns = page.query_selector_all('button:has-text("Бесплатно"), button:has-text("Free"), button:has-text("0 ₽"), button:has-text("0,00 €")')
-            for b in free_btns:
-                try:
-                    if b.is_visible() and b.is_enabled():
-                        if "получено" in b.inner_text().lower() or "claimed" in b.inner_text().lower():
-                            continue
-                        b.scroll_into_view_if_needed()
-                        time.sleep(0.5)
-                        b.click()
-                        time.sleep(2.0)
-
-                        modal_get = page.query_selector('.styles_modalWrapper__Jh7Lq button:has-text("Получить"), .styles_modalWrapper__Jh7Lq button:has-text("Claim")')
-                        if modal_get and modal_get.is_visible():
-                            modal_get.click()
-                            time.sleep(1.5)
-
-                        self._handle_enter_details(page)
-                        result["items_collected"].append("Market Promo Item")
-                except Exception:
-                    pass
-
-            result["success"] = True
-            if result["items_collected"]:
-                result["message"] = f"Successfully collected rewards: {len(result['items_collected'])}"
-                result["status_type"] = "collected"
-            else:
-                result["message"] = "All available free rewards have already been collected."
-                result["status_type"] = "already_claimed"
-            add_log("SUCCESS" if result["items_collected"] else "INFO", f"[{self.name}] {result['message']}")
-        except Exception as e:
-            result["success"] = False
-            result["status_type"] = "error"
-            result["message"] = f"Collection error: {e}"
-            add_log("ERROR", f"[{self.name}] {result['message']}")
-
-        return result
-
-
 class WarRobotsCollector:
     def __init__(self, game_cfg: Dict[str, Any], app_cfg: Dict[str, Any]):
         self.name = "War Robots"
         self.cfg = game_cfg
         self.player_id = str(self.cfg.get("player_id", "")).strip()
-        self.platform = self.cfg.get("platform", "android").lower()
-        self.market_url = self.cfg.get("market_url", "https://market.my.games/war_robots/")
+        self.platform = self.cfg.get("platform", "crossplay").lower()
+        self.shop_url = self.cfg.get("market_url", "https://shop.warrobots.com/")
+        if "market.my.games" in self.shop_url:
+            self.shop_url = "https://shop.warrobots.com/"
 
-    def _clear_overlays(self, page: Page):
+    def _dismiss_overlays(self, page: Page):
+        try:
+            accept_btn = page.query_selector('.cmpboxbtnyes, button:has-text("Accept all"), button:has-text("Принять все")')
+            if accept_btn and accept_btn.is_visible():
+                accept_btn.click()
+                time.sleep(0.8)
+        except Exception:
+            pass
+
         try:
             page.evaluate("""() => {
                 document.querySelector('#cmpbox')?.remove();
@@ -513,6 +385,30 @@ class WarRobotsCollector:
             }""")
         except Exception:
             pass
+
+    def _ensure_logged_in(self, page: Page):
+        """Ensures the player ID is set in the official shop."""
+        self._dismiss_overlays(page)
+
+        account_chip = page.query_selector('.shop-account-chip, .shop-account-chip__trigger')
+        chip_text = (account_chip.inner_text() or "").strip() if account_chip else ""
+
+        if not account_chip or "ENTER YOUR GAME ID" in chip_text.upper():
+            id_btn = page.query_selector('.shop-account-chip__no-account, button:has-text("ENTER YOUR GAME ID"), [class*="no-account"]')
+            if id_btn and id_btn.is_visible():
+                add_log("INFO", f"[{self.name}] Entering Game ID: {self.player_id}...")
+                id_btn.click()
+                time.sleep(1.5)
+
+                inp = page.query_selector('input[placeholder*="account ID"], input[placeholder*="game account"], input[placeholder*="ID"]')
+                if inp and inp.is_visible():
+                    inp.fill(self.player_id)
+                    time.sleep(0.5)
+                    cont = page.query_selector('button:has-text("CONTINUE"), button:has-text("Continue"), button:has-text("Продолжить")')
+                    if cont and cont.is_visible():
+                        cont.click()
+                        time.sleep(2.5)
+                        add_log("SUCCESS", f"[{self.name}] Player account linked successfully!")
 
     def collect(self, page: Page) -> Dict[str, Any]:
         result = {"game": self.name, "success": False, "items_collected": [], "message": ""}
@@ -522,59 +418,73 @@ class WarRobotsCollector:
             result["message"] = msg
             return result
 
-        add_log("INFO", f"[{self.name}] Navigating to market: {self.market_url}")
+        add_log("INFO", f"[{self.name}] Navigating to War Robots Web Shop: {self.shop_url}")
         try:
-            page.goto(self.market_url, wait_until="domcontentloaded", timeout=45000)
-            time.sleep(3.0)
-            self._clear_overlays(page)
+            page.goto(self.shop_url, wait_until="domcontentloaded", timeout=45000)
+            time.sleep(4.0)
+            self._ensure_logged_in(page)
 
-            # Platform selection (Android / iOS / PC / Steam)
-            target_plat = self.platform.lower()
+            # Check Free Daily Gift section
+            claim_btn = page.query_selector('.shop-free-daily-gift__cta, button:has-text("CLAIM")')
+
+            if not claim_btn:
+                free_btns = page.query_selector_all('button:has-text("CLAIM"), button:has-text("Free"), button:has-text("Бесплатно")')
+                if free_btns:
+                    claim_btn = free_btns[0]
+
+            if not claim_btn or not claim_btn.is_visible():
+                result["success"] = True
+                result["status_type"] = "no_rewards"
+                result["message"] = "No free daily gift available at this time."
+                add_log("INFO", f"[{self.name}] {result['message']}")
+                return result
+
+            # Determine item name from gift section
+            item_name = "Common Data Pad (Silver)"
             try:
-                for btn in page.query_selector_all('button, [role="tab"], [role="radio"], label, .platform-button'):
-                    txt = (btn.inner_text() or "").strip().lower()
-                    if target_plat in txt or (target_plat == "pc" and "steam" in txt):
-                        btn.scroll_into_view_if_needed()
-                        btn.click()
-                        time.sleep(0.8)
-                        break
+                title_el = page.query_selector('.shop-free-daily-gift__item-title, .shop-free-daily-gift strong, [class*="daily-gift"] h3, [class*="daily-gift"] [class*="title"]')
+                if title_el and title_el.inner_text().strip():
+                    item_name = title_el.inner_text().strip()
             except Exception:
                 pass
 
-            # Enter Pilot ID if input field is present
-            id_input = page.query_selector('input[placeholder*="ID"], input[placeholder*="Pilot"], input[name*="user_id"], input[type="text"]')
-            if id_input and id_input.is_visible():
-                if id_input.input_value().strip() != self.player_id:
-                    id_input.fill(self.player_id)
-                    sub = page.query_selector('button:has-text("Войти"), button:has-text("Применить"), button:has-text("Submit"), button:has-text("Confirm")')
-                    if sub and sub.is_visible():
-                        sub.click()
-                        time.sleep(1.5)
+            add_log("INFO", f"[{self.name}] Found Free Daily Gift: '{item_name}'. Claiming...")
+            claim_btn.scroll_into_view_if_needed()
+            time.sleep(0.5)
+            claim_btn.click()
+            time.sleep(2.0)
 
-            # Search and claim free rewards
-            free_keywords = ["бесплатно", "0 ₽", "free", "0$", "подарок", "gift"]
-            claimed = 0
-            for btn in page.query_selector_all('button, a, div[role="button"]'):
+            # Modal confirmation step
+            modal_btn = page.query_selector('.product-info-step__buy, [role="dialog"] button:has-text("CLAIM"), button:has-text("CLAIM").ui-button-primary--large')
+            if modal_btn and modal_btn.is_visible():
+                modal_btn.click()
+                time.sleep(4.0)
+
+            # Check purchase modal response
+            text_after = page.inner_text('body').lower()
+            if "thank you for your purchase" in text_after or "has been sent to your in-game account" in text_after or "успешно" in text_after:
+                result["success"] = True
+                result["status_type"] = "collected"
+                result["items_collected"].append(item_name)
+                result["message"] = f"Successfully claimed: {item_name}!"
+                add_log("SUCCESS", f"[{self.name}] {result['message']}")
+            elif "purchase limit exceeded" in text_after or "limit exceeded" in text_after or "something went wrong" in text_after:
+                result["success"] = True
+                result["status_type"] = "already_claimed"
+                result["message"] = "Daily free gift has already been claimed for today."
+                add_log("INFO", f"[{self.name}] {result['message']}")
+            else:
                 try:
-                    text = (btn.inner_text() or "").strip().lower()
-                    if any(kw in text for kw in free_keywords) and btn.is_visible() and btn.is_enabled():
-                        btn.scroll_into_view_if_needed()
-                        time.sleep(0.5)
-                        btn.click()
-                        claimed += 1
-                        result["items_collected"].append("War Robots Supply Gift")
-                        time.sleep(2.0)
+                    close_btn = page.query_selector('.ui-close-button, button:has-text("DONE"), button:has-text("CLOSE")')
+                    if close_btn and close_btn.is_visible():
+                        close_btn.click()
                 except Exception:
                     pass
+                result["success"] = True
+                result["status_type"] = "already_claimed"
+                result["message"] = "Daily gift already claimed or limit reached."
+                add_log("INFO", f"[{self.name}] {result['message']}")
 
-            result["success"] = True
-            if claimed > 0:
-                result["message"] = f"Successfully collected gifts: {claimed}"
-                result["status_type"] = "collected"
-            else:
-                result["message"] = "No free rewards available at this time (or already collected)."
-                result["status_type"] = "no_rewards"
-            add_log("SUCCESS" if claimed > 0 else "INFO", f"[{self.name}] {result['message']}")
         except Exception as e:
             result["success"] = False
             result["status_type"] = "error"
@@ -706,34 +616,6 @@ def api_get_cooldowns():
     last_checks = load_last_checks()
     now = datetime.datetime.now()
 
-    # Rush Royale check: reset on 1st of next month
-    rr_claimed_this_month = False
-    for h in history:
-        if h.get("game") == "Rush Royale" and h.get("status") == "success":
-            try:
-                h_date = datetime.datetime.strptime(h.get("timestamp", "")[:10], "%Y-%m-%d")
-                if h_date.year == now.year and h_date.month == now.month:
-                    rr_claimed_this_month = True
-                    break
-            except Exception:
-                pass
-
-    rr_check = last_checks.get("Rush Royale", {})
-    if not rr_claimed_this_month and rr_check:
-        try:
-            c_date = datetime.datetime.strptime(rr_check.get("timestamp", "")[:10], "%Y-%m-%d")
-            if c_date.year == now.year and c_date.month == now.month:
-                if rr_check.get("status_type") in ("collected", "already_claimed"):
-                    rr_claimed_this_month = True
-        except Exception:
-            pass
-
-    if now.month == 12:
-        next_month = datetime.datetime(now.year + 1, 1, 1, 0, 0, 0)
-    else:
-        next_month = datetime.datetime(now.year, now.month + 1, 1, 0, 0, 0)
-    rr_seconds = int((next_month - now).total_seconds()) if rr_claimed_this_month else 0
-
     # War Robots check: daily reset at midnight
     wr_claimed_today = False
     wr_status_type = "ready"
@@ -762,19 +644,12 @@ def api_get_cooldowns():
     wr_seconds = int((tomorrow - now).total_seconds()) if wr_claimed_today else 0
 
     return {
-        "rush_royale": {
-            "status": "already_claimed" if rr_claimed_this_month else "ready",
-            "claimed": rr_claimed_this_month,
-            "seconds_left": rr_seconds,
-            "title": "10 Summoning Bells",
-            "image_url": "https://static.my.games/market/images/products/24420.png"
-        },
         "war_robots": {
             "status": wr_status_type,
             "claimed": wr_claimed_today,
             "seconds_left": wr_seconds,
-            "title": "Daily Supply Gifts",
-            "image_url": "https://market.my.games/favicon.ico"
+            "title": "Daily Free Gift (Data Pad / Resources)",
+            "image_url": "https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png"
         }
     }
 
@@ -832,12 +707,6 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
         with BrowserManager(headless=headless, session_name="mygames_main") as bm:
             page = bm.new_page()
 
-            if target in ("all", "rush_royale"):
-                rr_cfg = config.get("games", {}).get("rush_royale", {})
-                if rr_cfg.get("enabled"):
-                    r = RushRoyaleCollector(rr_cfg, config.get("app", {})).collect(page)
-                    results.append(r)
-
             if target in ("all", "war_robots"):
                 wr_cfg = config.get("games", {}).get("war_robots", {})
                 if wr_cfg.get("enabled"):
@@ -854,7 +723,7 @@ def _run_collection_task(target: str = "all", force_head: bool = False):
                         "timestamp": now_str,
                         "game": r["game"],
                         "item_name": itm if isinstance(itm, str) else itm.get("name", "Reward"),
-                        "image_url": "https://market.my.games/favicon.ico" if r["game"] == "War Robots" else "https://static.my.games/market/images/products/24420.png",
+                        "image_url": "https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png",
                         "status": "success",
                         "message": r["message"]
                     })
@@ -975,15 +844,10 @@ def api_test_notify():
     return {"status": "ok", "message": "Test notification sent!"}
 
 def check_is_overdue(cfg: Dict[str, Any]) -> bool:
-    """Checks whether any enabled game has uncollected rewards that are overdue."""
+    """Checks whether War Robots has uncollected rewards that are overdue."""
     try:
         cd = api_get_cooldowns()
         games_cfg = cfg.get("games", {})
-
-        # Rush Royale check: overdue if enabled and not claimed in current calendar month
-        if games_cfg.get("rush_royale", {}).get("enabled", True):
-            if not cd.get("rush_royale", {}).get("claimed", False):
-                return True
 
         # War Robots check: overdue if enabled and not claimed today
         if games_cfg.get("war_robots", {}).get("enabled", True):
@@ -1137,7 +1001,7 @@ def start_gui():
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Auto Collect MyGames")
-    parser.add_argument("--run", choices=["all", "rush_royale", "war_robots"], nargs="?", const="all", help="CLI: Claim rewards")
+    parser.add_argument("--run", choices=["all", "war_robots"], nargs="?", const="all", help="CLI: Claim rewards")
     parser.add_argument("--login", action="store_true", help="CLI: Authenticate account")
     parser.add_argument("--head", action="store_true", help="CLI: Run with visible browser window")
     parser.add_argument("--daemon", action="store_true", help="Run background scheduler service without GUI")

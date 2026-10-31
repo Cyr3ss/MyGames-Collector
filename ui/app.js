@@ -7,9 +7,7 @@ let lastLogIndex = 0;
 let isPolling = true;
 let currentLanguage = localStorage.getItem("app_lang") || "ru";
 
-let rrCooldownData = null;
 let wrCooldownData = null;
-let rrCooldownSec = 0;
 let wrCooldownSec = 0;
 let wasRunning = false;
 
@@ -31,7 +29,6 @@ const TRANSLATIONS = {
     dash_sub: "Автоматический сбор ежедневных подарков и бесплатных наборов из магазинов",
     btn_visible: "Запустить с окном",
     btn_claim_all: "ЗАБРАТЬ ВСЕ НАГРАДЫ",
-    btn_claim_rr: "Забрать только Rush Royale",
     btn_claim_wr: "Забрать только War Robots",
     lbl_game_id: "Игровой ID (Game ID)",
     lbl_platform: "Платформа",
@@ -51,7 +48,7 @@ const TRANSLATIONS = {
     promo_sub: "Автоматический ввод промо-кодов для ваших игр в один клик",
     promo_badge: "СКОРО В ОБНОВЛЕНИИ V2.0",
     promo_card_title: "Универсальный активатор промокодов",
-    promo_card_desc: "Мы разрабатываем модуль автоматического распознавания и применения секретных промокодов для Rush Royale и War Robots без необходимости открывать игру.",
+    promo_card_desc: "Мы разрабатываем модуль автоматического распознавания и применения секретных промокодов для War Robots без необходимости открывать игру.",
     promo_lbl_game: "Выберите игру",
     promo_lbl_code: "Промокод",
     promo_btn_submit: "Активировать промокод (В разработке)",
@@ -96,9 +93,7 @@ const TRANSLATIONS = {
     badge_no_rewards: "Нет наград",
     cooldown_word: "Откат: ",
     cooldown_prefix: "Доступно через: ",
-    ph_dash_rr_id: "Введите ваш Player ID",
     ph_dash_wr_id: "Введите ваш Pilot ID",
-    ph_cfg_rr_id: "Введите Player ID",
     ph_cfg_wr_id: "Введите Pilot ID"
   },
   en: {
@@ -114,7 +109,6 @@ const TRANSLATIONS = {
     dash_sub: "Automated daily gifts and free bundle collector for game stores",
     btn_visible: "Run with Window",
     btn_claim_all: "CLAIM ALL REWARDS",
-    btn_claim_rr: "Claim Rush Royale Only",
     btn_claim_wr: "Claim War Robots Only",
     lbl_game_id: "Player ID (Game ID)",
     lbl_platform: "Platform",
@@ -134,7 +128,7 @@ const TRANSLATIONS = {
     promo_sub: "Automated one-click promo code activator across games",
     promo_badge: "COMING IN V2.0",
     promo_card_title: "Universal Promo Code Activator",
-    promo_card_desc: "We are developing an automated code redemption module for Rush Royale and War Robots without launching the games.",
+    promo_card_desc: "We are developing an automated code redemption module for War Robots without launching the games.",
     promo_lbl_game: "Select Game",
     promo_lbl_code: "Promo Code",
     promo_btn_submit: "Redeem Promo Code (In Development)",
@@ -179,9 +173,7 @@ const TRANSLATIONS = {
     badge_no_rewards: "No gifts",
     cooldown_word: "Cooldown: ",
     cooldown_prefix: "Available in: ",
-    ph_dash_rr_id: "Enter your Player ID",
     ph_dash_wr_id: "Enter your Pilot ID",
-    ph_cfg_rr_id: "Enter Player ID",
     ph_cfg_wr_id: "Enter Pilot ID"
   }
 };
@@ -271,19 +263,10 @@ async function loadConfig() {
     document.getElementById("cfg-screenshot").checked = currentConfig.app?.screenshot_on_error ?? true;
     document.getElementById("cfg-daemon-enabled").checked = currentConfig.app?.daemon_enabled ?? false;
 
-    // Rush Royale
-    const rr = currentConfig.games?.rush_royale || {};
-    const rrId = rr.player_id || "";
-    const rrPlat = (rr.platform || "android").toLowerCase();
-    document.getElementById("cfg-rr-player-id").value = rrId;
-    document.getElementById("dash-rr-player-id").value = rrId;
-    document.getElementById("dash-rr-platform").value = rrPlat;
-    document.getElementById("dash-rr-enabled").checked = rr.enabled ?? true;
-
     // War Robots
     const wr = currentConfig.games?.war_robots || {};
     const wrId = wr.player_id || "";
-    const wrPlat = (wr.platform || "android").toLowerCase();
+    const wrPlat = (wr.platform || "crossplay").toLowerCase();
     document.getElementById("cfg-wr-player-id").value = wrId;
     document.getElementById("dash-wr-player-id").value = wrId;
     document.getElementById("cfg-wr-platform").value = wrPlat;
@@ -313,16 +296,13 @@ async function saveFullConfig() {
   currentConfig.app.screenshot_on_error = document.getElementById("cfg-screenshot").checked;
   currentConfig.app.daemon_enabled = document.getElementById("cfg-daemon-enabled").checked;
 
-  currentConfig.games = currentConfig.games || {};
-  currentConfig.games.rush_royale = currentConfig.games.rush_royale || {};
-  currentConfig.games.rush_royale.player_id = document.getElementById("dash-rr-player-id").value.trim();
-  currentConfig.games.rush_royale.platform = document.getElementById("dash-rr-platform").value;
-  currentConfig.games.rush_royale.enabled = document.getElementById("dash-rr-enabled").checked;
-
-  currentConfig.games.war_robots = currentConfig.games.war_robots || {};
-  currentConfig.games.war_robots.player_id = document.getElementById("dash-wr-player-id").value.trim();
-  currentConfig.games.war_robots.platform = document.getElementById("dash-wr-platform").value;
-  currentConfig.games.war_robots.enabled = document.getElementById("dash-wr-enabled").checked;
+  currentConfig.games = {
+    war_robots: {
+      player_id: document.getElementById("dash-wr-player-id").value.trim(),
+      platform: document.getElementById("dash-wr-platform").value,
+      enabled: document.getElementById("dash-wr-enabled").checked
+    }
+  };
 
   currentConfig.notifications = currentConfig.notifications || {};
   currentConfig.notifications.telegram = {
@@ -351,7 +331,7 @@ async function saveFullConfig() {
 document.getElementById("btn-save-settings")?.addEventListener("click", saveFullConfig);
 
 // Two-way sync on dashboard inputs
-["dash-rr-player-id", "dash-rr-platform", "dash-rr-enabled", "dash-wr-player-id", "dash-wr-platform", "dash-wr-enabled"].forEach(id => {
+["dash-wr-player-id", "dash-wr-platform", "dash-wr-enabled"].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener("change", saveFullConfig);
@@ -383,11 +363,11 @@ async function loadHistory() {
     emptyState.style.display = "none";
     history.forEach(item => {
       const tr = document.createElement("tr");
-      const imgUrl = item.image_url || (item.game === "War Robots" ? "https://market.my.games/favicon.ico" : "https://static.my.games/market/images/products/24420.png");
+      const imgUrl = item.image_url || "https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png";
 
       tr.innerHTML = `
         <td style="color: var(--text-muted); font-size: 12px;">${escapeHtml(item.timestamp || "")}</td>
-        <td><b style="color: ${item.game === 'Rush Royale' ? '#c084fc' : '#38bdf8'};">${escapeHtml(item.game)}</b></td>
+        <td><b style="color: #38bdf8;">${escapeHtml(item.game)}</b></td>
         <td>
           <img src="${escapeHtml(imgUrl)}" class="history-thumb" alt="Item" onerror="this.src='https://market.my.games/favicon.ico'">
           <span>${escapeHtml(item.item_name || "Reward Item")}</span>
@@ -439,19 +419,7 @@ function formatTime(seconds, short = false) {
 }
 
 function updateCooldownDisplay() {
-  const rrBadge = document.getElementById("rr-cooldown-badge");
   const wrBadge = document.getElementById("wr-cooldown-badge");
-
-  if (rrBadge) {
-    if (rrCooldownSec <= 0 || !rrCooldownData?.claimed) {
-      rrBadge.innerText = t("ready_to_claim");
-      rrBadge.className = "cooldown-badge ready";
-    } else {
-      const cdStr = formatTime(rrCooldownSec, true);
-      rrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
-      rrBadge.className = "cooldown-badge claimed";
-    }
-  }
 
   if (wrBadge) {
     if (wrCooldownSec <= 0 || !wrCooldownData?.claimed) {
@@ -475,9 +443,7 @@ async function fetchCooldowns() {
     const res = await fetch("/api/rewards/cooldowns");
     if (res.ok) {
       const data = await res.json();
-      rrCooldownData = data.rush_royale || null;
       wrCooldownData = data.war_robots || null;
-      rrCooldownSec = data.rush_royale?.seconds_left || 0;
       wrCooldownSec = data.war_robots?.seconds_left || 0;
       updateCooldownDisplay();
     }
@@ -487,7 +453,6 @@ async function fetchCooldowns() {
 }
 
 setInterval(() => {
-  if (rrCooldownSec > 0) rrCooldownSec--;
   if (wrCooldownSec > 0) wrCooldownSec--;
   updateCooldownDisplay();
 }, 1000);
@@ -497,21 +462,11 @@ setInterval(() => {
 // ==========================================================================
 
 async function triggerCollect(target = "all", forceHead = false) {
-  const rrId = document.getElementById("dash-rr-player-id").value.trim();
   const wrId = document.getElementById("dash-wr-player-id").value.trim();
-  const rrEnabled = document.getElementById("dash-rr-enabled").checked;
   const wrEnabled = document.getElementById("dash-wr-enabled").checked;
 
-  if (target === "rush_royale" || (target === "all" && rrEnabled)) {
-    if (!rrId && target === "rush_royale") {
-      showToast(currentLanguage === "ru" ? "Пожалуйста, введите ваш ID в карточке Rush Royale!" : "Please enter your Player ID in Rush Royale card!", "error");
-      document.getElementById("dash-rr-player-id").focus();
-      return;
-    }
-  }
-
   if (target === "war_robots" || (target === "all" && wrEnabled)) {
-    if (!wrId && target === "war_robots") {
+    if (!wrId) {
       showToast(currentLanguage === "ru" ? "Пожалуйста, введите ваш Pilot ID в карточке War Robots!" : "Please enter your Pilot ID in War Robots card!", "error");
       document.getElementById("dash-wr-player-id").focus();
       return;
@@ -531,7 +486,6 @@ async function triggerCollect(target = "all", forceHead = false) {
 
 document.getElementById("btn-collect-all")?.addEventListener("click", () => triggerCollect("all", false));
 document.getElementById("btn-collect-head")?.addEventListener("click", () => triggerCollect("all", true));
-document.getElementById("btn-collect-rr")?.addEventListener("click", () => triggerCollect("rush_royale", false));
 document.getElementById("btn-collect-wr")?.addEventListener("click", () => triggerCollect("war_robots", false));
 
 // Action: Login

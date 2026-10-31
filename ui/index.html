@@ -115,50 +115,6 @@
           <!-- Cards Grid for Games -->
           <div class="cards-grid">
             
-            <!-- Rush Royale Card -->
-            <div class="glass-card">
-              <div class="card-header">
-                <div class="card-title-wrap">
-                  <div class="game-icon" style="color: #a855f7; border-color: rgba(168, 85, 247, 0.3);">⚔️</div>
-                  <div>
-                    <div class="game-title">Rush Royale</div>
-                    <div class="game-sub">MY.GAMES Market</div>
-                  </div>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" id="dash-rr-enabled" checked>
-                  <span class="slider"></span>
-                </label>
-              </div>
-
-              <!-- Live Product Preview -->
-              <div class="product-preview-wrap">
-                <img src="https://static.my.games/market/images/products/24420.png" class="product-preview-thumb" id="rr-product-img" alt="10 Bells" onerror="this.src='https://market.my.games/favicon.ico'">
-                <div class="product-preview-info">
-                  <div class="product-preview-title" id="rr-product-title">10 Колоколов призыва (Месячный подарок)</div>
-                  <div class="cooldown-badge ready" id="rr-cooldown-badge">Готово к сбору! 🎁</div>
-                </div>
-              </div>
-
-              <div class="card-body">
-                <div class="form-group" style="margin-bottom: 8px;">
-                  <label class="form-label" style="font-size: 11px;" data-i18n="lbl_game_id">Игровой ID (Game ID)</label>
-                  <input type="text" class="input-field" id="dash-rr-player-id" data-i18n-ph="ph_dash_rr_id" placeholder="Введите ваш Player ID" style="padding: 9px 12px; font-size: 13px;">
-                </div>
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" style="font-size: 11px;" data-i18n="lbl_platform">Платформа</label>
-                  <select class="select-field" id="dash-rr-platform" style="padding: 9px 12px; font-size: 13px;">
-                    <option value="android">Android</option>
-                    <option value="ios">iOS</option>
-                    <option value="huawei">Huawei</option>
-                  </select>
-                </div>
-                <button class="btn btn-secondary btn-full" id="btn-collect-rr">
-                  <span>🎁</span> <span data-i18n="btn_claim_rr">Забрать только Rush Royale</span>
-                </button>
-              </div>
-            </div>
-
             <!-- War Robots Card -->
             <div class="glass-card">
               <div class="card-header">
@@ -166,7 +122,7 @@
                   <div class="game-icon" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">🤖</div>
                   <div>
                     <div class="game-title">War Robots</div>
-                    <div class="game-sub">Web Shop & D-Gems</div>
+                    <div class="game-sub">Official Web Shop (shop.warrobots.com)</div>
                   </div>
                 </div>
                 <label class="switch">
@@ -177,9 +133,9 @@
 
               <!-- Live Product Preview -->
               <div class="product-preview-wrap">
-                <img src="https://market.my.games/favicon.ico" class="product-preview-thumb" id="wr-product-img" alt="WR Supplies">
+                <img src="https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png" class="product-preview-thumb" id="wr-product-img" alt="WR Supplies" onerror="this.src='https://market.my.games/favicon.ico'">
                 <div class="product-preview-info">
-                  <div class="product-preview-title" id="wr-product-title">Ежедневный набор припасов</div>
+                  <div class="product-preview-title" id="wr-product-title">Ежедневный подарок (Data Pad / Ресурсы)</div>
                   <div class="cooldown-badge ready" id="wr-cooldown-badge">Готово к сбору! 🎁</div>
                 </div>
               </div>
@@ -192,10 +148,7 @@
                 <div class="form-group" style="margin-bottom: 12px;">
                   <label class="form-label" style="font-size: 11px;" data-i18n="lbl_platform">Платформа</label>
                   <select class="select-field" id="dash-wr-platform" style="padding: 9px 12px; font-size: 13px;">
-                    <option value="android">Android</option>
-                    <option value="ios">iOS</option>
-                    <option value="steam">Steam / PC</option>
-                    <option value="mygames">MY.GAMES Launcher</option>
+                    <option value="crossplay">Cross-platform (Android / iOS / PC / Steam)</option>
                   </select>
                 </div>
                 <button class="btn btn-secondary btn-full" id="btn-collect-wr">
@@ -275,20 +228,19 @@
 
             <h3 style="font-size: 18px; margin-bottom: 8px; color: #fff;" data-i18n="promo_card_title">Универсальный активатор промокодов</h3>
             <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;" data-i18n="promo_card_desc">
-              Мы разрабатываем модуль автоматического распознавания и применения секретных промокодов для Rush Royale и War Robots без необходимости открывать игру.
+              Мы разрабатываем модуль автоматического распознавания и применения секретных промокодов для War Robots без необходимости открывать игру.
             </p>
 
             <div class="form-group">
               <label class="form-label" data-i18n="promo_lbl_game">Выберите игру</label>
               <select class="select-field" id="promo-game-select">
-                <option value="rush_royale">Rush Royale</option>
                 <option value="war_robots">War Robots</option>
               </select>
             </div>
 
             <div class="form-group">
               <label class="form-label" data-i18n="promo_lbl_code">Промокод</label>
-              <input type="text" class="input-field" placeholder="Например: RUSH-HERO-2026" style="text-transform: uppercase;">
+              <input type="text" class="input-field" placeholder="Например: WR-ROBOTS-2026" style="text-transform: uppercase;">
             </div>
 
             <button class="btn btn-secondary btn-full" style="opacity: 0.6; cursor: not-allowed;" id="btn-promo-submit">
@@ -407,11 +359,6 @@
               <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">🎮 <span data-i18n="cfg_section_games">Игровые профили</span></h3>
               
               <div class="form-group">
-                <label class="form-label">Rush Royale: Player ID</label>
-                <input type="text" class="input-field" id="cfg-rr-player-id" data-i18n-ph="ph_cfg_rr_id" placeholder="Введите Player ID">
-              </div>
-
-              <div class="form-group">
                 <label class="form-label">War Robots: Pilot ID</label>
                 <input type="text" class="input-field" id="cfg-wr-player-id" data-i18n-ph="ph_cfg_wr_id" placeholder="Введите Pilot ID">
               </div>
@@ -419,10 +366,7 @@
               <div class="form-group">
                 <label class="form-label" data-i18n="lbl_platform">War Robots: Платформа</label>
                 <select class="select-field" id="cfg-wr-platform">
-                  <option value="android">Android</option>
-                  <option value="ios">iOS</option>
-                  <option value="steam">Steam / PC</option>
-                  <option value="mygames">MY.GAMES Launcher</option>
+                  <option value="crossplay">Cross-platform (Android / iOS / PC / Steam)</option>
                 </select>
               </div>
             </div>

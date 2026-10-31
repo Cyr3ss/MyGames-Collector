@@ -20,17 +20,9 @@ notifications:
     webhook_url: ''         # Discord channel webhook URL
 
 games:
-  rush_royale:
-    enabled: true
-    player_id: ''           # Rush Royale Player ID (from in-game profile)
-    platform: android       # android / ios
-    market_url: https://market.my.games/rush_royale?content=items
-    auto_claim_free_market: true
-    auto_redeem_promo: true
-
   war_robots:
     enabled: true
     player_id: ''           # War Robots Pilot ID (from in-game settings)
-    platform: android       # android / ios / pc
-    market_url: https://market.my.games/war_robots/
+    platform: crossplay     # War Robots is cross-platform (Android / iOS / PC / Steam)
+    market_url: https://shop.warrobots.com/
     auto_claim_free_market: true
