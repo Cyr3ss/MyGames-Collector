@@ -338,6 +338,7 @@ class BrowserManager:
             kwargs["executable_path"] = browser_exe
 
         self.context = self._playwright.chromium.launch_persistent_context(**kwargs)
+        self.context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
         return self.context
 
     def new_page(self) -> Page:
@@ -794,9 +795,15 @@ def _run_collection_task(target: str = "all", force_head: bool = False, trigger_
             STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (COLLECTED: {total_collected} ✓)"
             STATE["last_run_status"] = "success"
         else:
-            STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (НАГРАДЫ УЖЕ ЗАБРАНЫ ✓)"
-            STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (ALL REWARDS CLAIMED ✓)"
-            STATE["last_run_status"] = "success"
+            all_no_rewards = all(r.get("status_type") == "no_rewards" for r in results)
+            if all_no_rewards:
+                STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (НЕТ НАГРАД В МАГАЗИНЕ)"
+                STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (NO REWARDS IN STORE)"
+                STATE["last_run_status"] = "idle"
+            else:
+                STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (НАГРАДЫ УЖЕ ЗАБРАНЫ ✓)"
+                STATE["last_run_summary_en"] = f"LAST RUN: {now_time} (ALL REWARDS CLAIMED ✓)"
+                STATE["last_run_status"] = "success"
 
         # Send notification report
         lines = ["<b>🎁 Auto Collect MyGames: Report</b>\n"]
@@ -808,7 +815,13 @@ def _run_collection_task(target: str = "all", force_head: bool = False, trigger_
         notifier.send("\n".join(lines))
         STATE["last_result"] = results
         STATE["last_daemon_run"] = time.time()
-        add_log("SUCCESS", "Reward collection finished!")
+        
+        if total_collected > 0:
+            add_log("SUCCESS", f"Сбор наград завершён! Получено предметов: {total_collected}")
+        elif any(r.get("status_type") == "no_rewards" for r in results):
+            add_log("INFO", "Проверка завершена: в официальном магазине сейчас нет доступных бесплатных подарков.")
+        else:
+            add_log("INFO", "Проверка завершена: подарки уже были собраны за этот период.")
     except Exception as e:
         now_time = datetime.datetime.now().strftime("%H:%M")
         STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {now_time} (ОШИБКА ⚠️)"

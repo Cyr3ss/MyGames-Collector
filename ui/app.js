@@ -86,7 +86,7 @@ const TRANSLATIONS = {
     daemon_off: "ДЕМОН: ВЫКЛ",
     ready_to_claim: "Готово к сбору! 🎁",
     badge_claimed: "Собрано ✓",
-    badge_no_rewards: "Нет наград",
+    badge_no_rewards: "Нет наград в магазине",
     cooldown_word: "Откат: ",
     cooldown_prefix: "Доступно через: ",
     ph_dash_wr_id: "Введите ваш Pilot ID",
@@ -162,7 +162,7 @@ const TRANSLATIONS = {
     daemon_off: "DAEMON: OFF",
     ready_to_claim: "Ready to Claim! 🎁",
     badge_claimed: "Claimed ✓",
-    badge_no_rewards: "No gifts",
+    badge_no_rewards: "No gifts in store",
     cooldown_word: "Cooldown: ",
     cooldown_prefix: "Available in: ",
     ph_dash_wr_id: "Enter your Pilot ID",
@@ -419,18 +419,16 @@ function updateCooldownDisplay() {
   const wrBadge = document.getElementById("wr-cooldown-badge");
 
   if (wrBadge) {
-    if (wrCooldownSec <= 0 || !wrCooldownData?.claimed) {
+    if (wrCooldownData?.status === "no_rewards") {
+      wrBadge.innerText = t("badge_no_rewards");
+      wrBadge.className = "cooldown-badge no-rewards";
+    } else if (wrCooldownSec <= 0 || !wrCooldownData?.claimed) {
       wrBadge.innerText = t("ready_to_claim");
       wrBadge.className = "cooldown-badge ready";
     } else {
       const cdStr = formatTime(wrCooldownSec, true);
-      if (wrCooldownData?.status === "no_rewards") {
-        wrBadge.innerText = `${t("badge_no_rewards")} (${t("cooldown_word")}${cdStr})`;
-        wrBadge.className = "cooldown-badge no-rewards";
-      } else {
-        wrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
-        wrBadge.className = "cooldown-badge claimed";
-      }
+      wrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
+      wrBadge.className = "cooldown-badge claimed";
     }
   }
 }
