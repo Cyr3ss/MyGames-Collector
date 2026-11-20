@@ -32,7 +32,7 @@ if exist "dist\AutoCollect" rmdir /s /q "dist\AutoCollect"
 if exist "dist\AutoCollect-Release.zip" del /f /q "dist\AutoCollect-Release.zip"
 
 echo [*] Compiling application using PyInstaller...
-%PYINSTALLER_EXE% --noconfirm --onedir --windowed --name "AutoCollect" --add-data "ui;ui" --collect-all playwright app.py
+%PYINSTALLER_EXE% --noconfirm --onedir --windowed --name "AutoCollect" --icon "ui/assets/icon.ico" --add-data "ui;ui" --collect-all playwright --collect-all pystray --collect-all PIL app.py
 
 if errorlevel 1 (
     echo.
