@@ -424,8 +424,8 @@ function formatTime(seconds, short = false) {
   const s = seconds % 60;
 
   const prefix = short ? "" : t("cooldown_prefix");
-  if (d > 0) return `${prefix}${d}d ${h}h`;
-  if (h > 0) return `${prefix}${h}h ${m}m`;
+  if (d > 0) return `${prefix}${d}d ${h}h ${m}m`;
+  if (h > 0) return `${prefix}${h}h ${m}m ${s}s`;
   return `${prefix}${m}m ${s}s`;
 }
 
@@ -433,15 +433,15 @@ function updateCooldownDisplay() {
   const wrBadge = document.getElementById("wr-cooldown-badge");
   if (wrBadge) {
     if (wrCooldownSec <= 0 || !wrCooldownData?.claimed) {
-      wrBadge.innerText = t("ready_to_claim");
+      wrBadge.innerHTML = `<span class="pulse-dot"></span><span>${t("ready_to_claim")}</span>`;
       wrBadge.className = "cooldown-badge ready";
     } else {
       const cdStr = formatTime(wrCooldownSec, true);
       if (wrCooldownData?.status === "no_rewards") {
-        wrBadge.innerText = `${t("badge_no_rewards")} (${t("cooldown_word")}${cdStr})`;
+        wrBadge.innerHTML = `<span class="pulse-dot"></span><span>${t("badge_no_rewards")} (${t("cooldown_word")}${cdStr})</span>`;
         wrBadge.className = "cooldown-badge no-rewards";
       } else {
-        wrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
+        wrBadge.innerHTML = `<span class="pulse-dot"></span><span>${t("badge_claimed")} (${t("cooldown_word")}${cdStr})</span>`;
         wrBadge.className = "cooldown-badge claimed";
       }
     }
