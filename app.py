@@ -14,6 +14,7 @@ import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+import re
 import yaml
 import requests
 import uvicorn
@@ -218,7 +219,29 @@ def load_last_checks() -> Dict[str, Any]:
     except Exception:
         return {}
 
-def save_last_check(game: str, status_type: str, message: str, items: list = None):
+def parse_cooldown_text(text: str) -> Optional[int]:
+    """Parses live countdown strings like '21h 47m', '45m', '1d 2h' into exact seconds."""
+    if not text:
+        return None
+    text = text.lower().strip()
+    days = 0
+    hours = 0
+    mins = 0
+    d_match = re.search(r'(\d+)\s*d', text)
+    if d_match:
+        days = int(d_match.group(1))
+    h_match = re.search(r'(\d+)\s*h', text)
+    if h_match:
+        hours = int(h_match.group(1))
+    m_match = re.search(r'(\d+)\s*m', text)
+    if m_match:
+        mins = int(m_match.group(1))
+    s_match = re.search(r'(\d+)\s*s', text)
+    secs = int(s_match.group(1)) if s_match else 0
+    total = days * 86400 + hours * 3600 + mins * 60 + secs
+    return total if total > 0 else None
+
+def save_last_check(game: str, status_type: str, message: str, items: list = None, exact_seconds_left: int = None, timer_str: str = None):
     checks = load_last_checks()
     existing = checks.get(game, {})
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -232,8 +255,11 @@ def save_last_check(game: str, status_type: str, message: str, items: list = Non
     checks[game] = {
         "status_type": status_type,
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "unix_timestamp": int(time.time()),
         "message": message,
-        "items": items or []
+        "items": items or [],
+        "exact_seconds_left": exact_seconds_left if exact_seconds_left is not None else existing.get("exact_seconds_left"),
+        "timer_str": timer_str if timer_str is not None else existing.get("timer_str")
     }
     try:
         with open(LAST_CHECKS_PATH, "w", encoding="utf-8") as f:
@@ -538,17 +564,26 @@ class WarRobotsCollector:
             except Exception:
                 pass
 
+            # Check official website live countdown timer
+            countdown_el = page.query_selector('.shop-countdown-badge__label, .shop-free-daily-gift__next-timer, .shop-countdown-badge')
+            timer_text = countdown_el.inner_text().strip() if countdown_el else ""
+            exact_sec = parse_cooldown_text(timer_text) if timer_text else None
+
             # Check if button is disabled (already claimed)
+            btn_text = (claim_btn.inner_text() or "").lower()
             is_disabled = (
                 not claim_btn.is_enabled()
                 or claim_btn.get_attribute("disabled") is not None
                 or "disabled" in (claim_btn.get_attribute("class") or "").lower()
                 or claim_btn.get_attribute("aria-disabled") == "true"
+                or (timer_text != "" and "next reward" in btn_text)
             )
             if is_disabled:
                 result["success"] = True
                 result["status_type"] = "already_claimed"
-                result["message"] = "Daily free gift has already been claimed for today."
+                result["exact_seconds_left"] = exact_sec
+                result["timer_str"] = timer_text
+                result["message"] = f"Daily free gift has already been claimed for today (Next in {timer_text or '24h'})."
                 add_log("INFO", f"[{self.name}] {result['message']}")
                 return result
 
@@ -798,6 +833,23 @@ def api_get_cooldowns():
     wr_status_type = "ready"
     wr_seconds = 0
 
+    # 0. Check live countdown timer from the official game shop
+    exact_sec = wr_check.get("exact_seconds_left")
+    unix_ts = wr_check.get("unix_timestamp", 0)
+    if exact_sec and unix_ts > 0:
+        elapsed = int(time.time() - unix_ts)
+        remaining = max(0, int(exact_sec - elapsed))
+        if remaining > 0:
+            return {
+                "war_robots": {
+                    "status": "already_claimed",
+                    "claimed": True,
+                    "seconds_left": remaining,
+                    "title": "Daily Free Gift (Data Pad / Resources)",
+                    "image_url": "https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png"
+                }
+            }
+
     # 1. Determine latest claim timestamp from last_checks
     last_ts_str = wr_check.get("timestamp", "")
     last_claim_dt = None
@@ -899,7 +951,9 @@ def _run_collection_task(target: str = "all", force_head: bool = False, trigger_
                 game=r["game"],
                 status_type=st,
                 message=r.get("message", ""),
-                items=r.get("items_collected", [])
+                items=r.get("items_collected", []),
+                exact_seconds_left=r.get("exact_seconds_left"),
+                timer_str=r.get("timer_str")
             )
             items_str = ", ".join(r.get("items_collected", [])) if r.get("items_collected") else "None"
             log_claim_event(
