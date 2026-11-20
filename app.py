@@ -220,6 +220,15 @@ def load_last_checks() -> Dict[str, Any]:
 
 def save_last_check(game: str, status_type: str, message: str, items: list = None):
     checks = load_last_checks()
+    existing = checks.get(game, {})
+    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    # If already successfully collected or claimed today, don't let a subsequent error overwrite success
+    if status_type == "error" and existing.get("timestamp", "").startswith(today_str):
+        if existing.get("status_type") in ("collected", "already_claimed"):
+            add_log("DEBUG", f"Preserving today's successful status for {game} instead of overwriting with error.")
+            return
+
     checks[game] = {
         "status_type": status_type,
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -529,17 +538,57 @@ class WarRobotsCollector:
             except Exception:
                 pass
 
+            # Check if button is disabled (already claimed)
+            is_disabled = (
+                not claim_btn.is_enabled()
+                or claim_btn.get_attribute("disabled") is not None
+                or "disabled" in (claim_btn.get_attribute("class") or "").lower()
+                or claim_btn.get_attribute("aria-disabled") == "true"
+            )
+            if is_disabled:
+                result["success"] = True
+                result["status_type"] = "already_claimed"
+                result["message"] = "Daily free gift has already been claimed for today."
+                add_log("INFO", f"[{self.name}] {result['message']}")
+                return result
+
             add_log("INFO", f"[{self.name}] Found Free Daily Gift: '{item_name}'. Claiming...")
-            claim_btn.scroll_into_view_if_needed()
-            time.sleep(0.5)
-            claim_btn.click()
-            time.sleep(2.0)
+            try:
+                claim_btn.scroll_into_view_if_needed()
+                time.sleep(0.5)
+                claim_btn.click(timeout=5000)
+                time.sleep(2.0)
+            except Exception as click_err:
+                err_text = str(click_err).lower()
+                if "not enabled" in err_text or "disabled" in err_text or "timeout" in err_text:
+                    result["success"] = True
+                    result["status_type"] = "already_claimed"
+                    result["message"] = "Daily free gift has already been claimed for today."
+                    add_log("INFO", f"[{self.name}] {result['message']}")
+                    return result
+                raise click_err
 
             # Modal confirmation step
             modal_btn = page.query_selector('.product-info-step__buy, [role="dialog"] button:has-text("CLAIM"), button:has-text("CLAIM").ui-button-primary--large')
             if modal_btn and modal_btn.is_visible():
-                modal_btn.click()
-                time.sleep(4.0)
+                if not modal_btn.is_enabled() or modal_btn.get_attribute("disabled") is not None:
+                    result["success"] = True
+                    result["status_type"] = "already_claimed"
+                    result["message"] = "Daily free gift has already been claimed for today."
+                    add_log("INFO", f"[{self.name}] {result['message']}")
+                    return result
+                try:
+                    modal_btn.click(timeout=5000)
+                    time.sleep(4.0)
+                except Exception as modal_err:
+                    err_text = str(modal_err).lower()
+                    if "not enabled" in err_text or "disabled" in err_text or "timeout" in err_text:
+                        result["success"] = True
+                        result["status_type"] = "already_claimed"
+                        result["message"] = "Daily free gift has already been claimed for today."
+                        add_log("INFO", f"[{self.name}] {result['message']}")
+                        return result
+                    raise modal_err
 
             # Check purchase modal response
             text_after = page.inner_text('body').lower()
@@ -593,19 +642,45 @@ STATE = {
 
 def init_last_run_state():
     checks = load_last_checks()
+    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    # Check if War Robots was collected today in history
+    claimed_in_history = False
+    for h in load_history():
+        if h.get("game") == "War Robots" and h.get("status") == "success":
+            if (h.get("timestamp") or "").startswith(today_str):
+                claimed_in_history = True
+                break
+
     if checks:
         latest_ts = ""
+        latest_check = None
         for c in checks.values():
             ts = c.get("timestamp", "")
             if ts > latest_ts:
                 latest_ts = ts
-        if latest_ts:
+                latest_check = c
+        if latest_ts and latest_check:
             try:
                 t_obj = datetime.datetime.strptime(latest_ts, "%Y-%m-%d %H:%M:%S")
                 time_str = t_obj.strftime("%H:%M")
-                STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {time_str} (ПРОВЕРЕНО ✓)"
-                STATE["last_run_summary_en"] = f"LAST RUN: {time_str} (VERIFIED ✓)"
-                STATE["last_run_status"] = "success"
+                st = latest_check.get("status_type", "")
+                if st == "error" and not claimed_in_history:
+                    STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {time_str} (ОШИБКА ⚠️)"
+                    STATE["last_run_summary_en"] = f"LAST RUN: {time_str} (ERROR ⚠️)"
+                    STATE["last_run_status"] = "error"
+                elif st == "collected" or claimed_in_history:
+                    STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {time_str} (СОБРАНО ✓)"
+                    STATE["last_run_summary_en"] = f"LAST RUN: {time_str} (COLLECTED ✓)"
+                    STATE["last_run_status"] = "success"
+                elif st == "no_rewards":
+                    STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {time_str} (НЕТ НАГРАД В МАГАЗИНЕ)"
+                    STATE["last_run_summary_en"] = f"LAST RUN: {time_str} (NO REWARDS IN STORE)"
+                    STATE["last_run_status"] = "idle"
+                else:
+                    STATE["last_run_summary_ru"] = f"ПОСЛЕДНИЙ СБОР: {time_str} (НАГРАДЫ УЖЕ ЗАБРАНЫ ✓)"
+                    STATE["last_run_summary_en"] = f"LAST RUN: {time_str} (ALL REWARDS CLAIMED ✓)"
+                    STATE["last_run_status"] = "success"
             except Exception:
                 pass
 
@@ -717,25 +792,50 @@ def api_clear_history():
 def api_get_cooldowns():
     checks = load_last_checks()
     now = datetime.datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
 
     wr_check = checks.get("War Robots", {})
     wr_claimed_today = False
     wr_status_type = "ready"
+    wr_seconds = 0
 
-    if wr_check.get("timestamp", "").startswith(today_str):
-        if wr_check.get("status_type") == "collected":
-            wr_claimed_today = True
-            wr_status_type = "collected"
-        elif wr_check.get("status_type") == "no_rewards":
-            wr_claimed_today = True
-            wr_status_type = "no_rewards"
-        elif wr_check.get("status_type") == "already_claimed":
-            wr_claimed_today = True
-            wr_status_type = "already_claimed"
+    # 1. Determine latest claim timestamp from last_checks
+    last_ts_str = wr_check.get("timestamp", "")
+    last_claim_dt = None
+    if last_ts_str:
+        try:
+            last_claim_dt = datetime.datetime.strptime(last_ts_str, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
 
-    tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    wr_seconds = int((tomorrow - now).total_seconds()) if wr_claimed_today else 0
+    # 2. Also check history for the latest successful collection
+    for h in load_history():
+        if h.get("game") == "War Robots" and h.get("status") == "success":
+            h_ts_str = h.get("timestamp", "")
+            if h_ts_str:
+                try:
+                    fmt = "%Y-%m-%d %H:%M:%S" if len(h_ts_str) > 16 else "%Y-%m-%d %H:%M"
+                    h_dt = datetime.datetime.strptime(h_ts_str, fmt)
+                    if last_claim_dt is None or h_dt > last_claim_dt:
+                        last_claim_dt = h_dt
+                        wr_check["status_type"] = "collected"
+                except Exception:
+                    pass
+            break
+
+    # 3. Check elapsed time from latest claim
+    if last_claim_dt:
+        elapsed_sec = (now - last_claim_dt).total_seconds()
+        # Cooldown is 20 hours minimum (daily reset cycle)
+        if elapsed_sec < 20 * 3600:
+            st = wr_check.get("status_type", "already_claimed")
+            if st in ("collected", "already_claimed"):
+                wr_claimed_today = True
+                wr_status_type = st
+                wr_seconds = max(0, int(24 * 3600 - elapsed_sec))
+            elif st == "no_rewards":
+                wr_claimed_today = True
+                wr_status_type = "no_rewards"
+                wr_seconds = max(0, int(24 * 3600 - elapsed_sec))
 
     return {
         "war_robots": {
@@ -846,7 +946,9 @@ def _run_collection_task(target: str = "all", force_head: bool = False, trigger_
         STATE["last_result"] = results
         STATE["last_daemon_run"] = time.time()
         
-        if total_collected > 0:
+        if any_errors:
+            add_log("WARNING", "Проверка завершена: возникла ошибка при обращении к магазину.")
+        elif total_collected > 0:
             add_log("SUCCESS", f"Сбор наград завершён! Получено предметов: {total_collected}")
         elif any(r.get("status_type") == "no_rewards" for r in results):
             add_log("INFO", "Проверка завершена: в официальном магазине сейчас нет доступных бесплатных подарков.")
