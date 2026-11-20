@@ -3,46 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Auto Collect MyGames - Loader</title>
-  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <title>WR Rewards Toolkit</title>
+  <link rel="icon" type="image/x-icon" href="/static/assets/icon.ico">
+  <!-- Windows 11 Segoe UI & Inter typography fallback -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="app-container">
     
-    <!-- Custom Titlebar -->
+    <!-- Titlebar (Lenovo Legion Toolkit Style) -->
     <header class="titlebar">
       <div class="brand-wrapper">
-        <div class="brand-icon">✦</div>
-        <div class="brand-title">MY.GAMES REWARD LOADER</div>
-        <span class="brand-badge">v1.3.0</span>
+        <img src="/static/assets/icon.png" class="brand-logo" alt="Logo" onerror="this.style.display='none'">
+        <div class="brand-title">WR REWARDS TOOLKIT</div>
+        <span class="brand-badge">v2.0</span>
       </div>
 
       <div class="titlebar-center">
-        <!-- Daemon Status Indicator -->
-        <div class="daemon-pill" id="daemon-status-pill" title="Фоновый планировщик сбора">
-          <span class="daemon-dot"></span>
-          <span id="daemon-status-text">ДЕМОН: ВЫКЛ</span>
+        <!-- Daemon Status Pill -->
+        <div class="status-pill cursor-pointer" id="daemon-status-pill" title="Нажмите, чтобы включить/выключить фоновый автосбор">
+          <span class="status-dot dot-daemon"></span>
+          <span id="daemon-status-text">АВТОСБОР: ВЫКЛ</span>
         </div>
 
         <!-- Global Status Pill -->
-        <div class="system-status-pill" id="system-status">
-          <span class="status-dot"></span>
-          <span id="status-text">СИСТЕМА ГОТОВА</span>
+        <div class="status-pill" id="system-status">
+          <span class="status-dot dot-system"></span>
+          <span id="status-text">ГОТОВО К РАБОТЕ</span>
         </div>
-
-        <!-- Top Finish Login Button -->
-        <button class="btn btn-primary" id="btn-top-finish-login" style="display: none; padding: 4px 12px; font-size: 11px;">
-          ✓ Я вошёл (Завершить)
-        </button>
       </div>
 
-      <div style="display: flex; align-items: center; gap: 10px;">
+      <div class="titlebar-actions">
         <!-- Language Switcher -->
-        <button class="lang-switch-btn" id="btn-toggle-lang" title="Сменить язык / Switch Language">
+        <button class="btn btn-subtle btn-sm" id="btn-toggle-lang" title="Сменить язык / Switch Language">
           🌐 <span id="current-lang-text">RU</span>
         </button>
       </div>
@@ -53,41 +49,37 @@
       
       <!-- Sidebar Navigation -->
       <aside class="sidebar">
-        <div class="nav-group">
-          <div class="nav-label" data-i18n="nav_label">Навигация</div>
-          <div class="nav-item active" data-tab="dashboard">
+        <div class="nav-section-label" data-i18n="nav_label">НАВИГАЦИЯ</div>
+        <nav class="nav-menu">
+          <button class="nav-item active" data-tab="dashboard">
             <span class="nav-icon">⚡</span>
-            <span data-i18n="tab_dashboard">Дашборд</span>
-          </div>
-          <div class="nav-item" data-tab="history">
-            <span class="nav-icon">📜</span>
-            <span data-i18n="tab_history">История сборов</span>
-          </div>
-          <div class="nav-item" data-tab="promocodes">
+            <span class="nav-text" data-i18n="tab_dashboard">Дашборд</span>
+          </button>
+          <button class="nav-item" data-tab="promocodes">
             <span class="nav-icon">🎟️</span>
-            <span data-i18n="tab_promocodes">Промокоды</span>
-          </div>
-          <div class="nav-item" data-tab="auth">
-            <span class="nav-icon">🔑</span>
-            <span data-i18n="tab_auth">Авторизация</span>
-          </div>
-          <div class="nav-item" data-tab="settings">
+            <span class="nav-text" data-i18n="tab_promocodes">Промокоды</span>
+          </button>
+          <button class="nav-item" data-tab="history">
+            <span class="nav-icon">📜</span>
+            <span class="nav-text" data-i18n="tab_history">История сборов</span>
+          </button>
+          <button class="nav-item" data-tab="settings">
             <span class="nav-icon">⚙️</span>
-            <span data-i18n="tab_settings">Настройки</span>
-          </div>
-          <div class="nav-item" data-tab="console">
+            <span class="nav-text" data-i18n="tab_settings">Настройки</span>
+          </button>
+          <button class="nav-item" data-tab="console">
             <span class="nav-icon">📟</span>
-            <span data-i18n="tab_console">Живая консоль</span>
-          </div>
-        </div>
+            <span class="nav-text" data-i18n="tab_console">Живая консоль</span>
+          </button>
+        </nav>
 
         <div class="sidebar-footer">
-          <div class="session-badge">
-            <span style="font-size: 20px;">🛡️</span>
-            <div class="session-info">
-              <span class="session-title" data-i18n="session_title">MY.GAMES Профиль</span>
-              <span class="session-status" id="sidebar-auth-status">Проверка...</span>
+          <div class="tray-status-box">
+            <div class="tray-status-row">
+              <span class="status-indicator-dot online"></span>
+              <span class="tray-status-label" data-i18n="tray_active">Трей активен</span>
             </div>
+            <div class="tray-status-sub" id="sidebar-daemon-status">Фоновый сбор: Выкл</div>
           </div>
         </div>
       </aside>
@@ -98,100 +90,126 @@
         <!-- ================= TAB 1: DASHBOARD ================= -->
         <section id="tab-dashboard" class="tab-content active">
           <div class="view-header">
-            <div class="view-title-group">
-              <h1 data-i18n="dash_title">Центр управления наградами</h1>
-              <p data-i18n="dash_sub">Автоматический сбор ежедневных подарков и бесплатных наборов из магазинов</p>
+            <div>
+              <h1 class="view-title" data-i18n="dash_title">Центр управления наградами</h1>
+              <p class="view-subtitle" data-i18n="dash_sub">Автоматический сбор ежедневных подарков и предметов из официального магазина</p>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div class="header-actions">
               <button class="btn btn-secondary" id="btn-collect-head">
                 <span>👀</span> <span data-i18n="btn_visible">Запустить с окном</span>
               </button>
-              <button class="btn btn-primary btn-large" id="btn-collect-all">
-                <span>⚡</span> <span data-i18n="btn_claim_all">ЗАБРАТЬ ВСЕ НАГРАДЫ</span>
+              <button class="btn btn-primary" id="btn-collect-all">
+                <span>⚡</span> <span data-i18n="btn_claim_all">ЗАБРАТЬ НАГРАДЫ</span>
               </button>
             </div>
           </div>
 
-          <!-- Cards Grid for Games -->
-          <div class="cards-grid">
-            
-            <!-- War Robots Card -->
-            <div class="glass-card">
-              <div class="card-header">
-                <div class="card-title-wrap">
-                  <div class="game-icon" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">🤖</div>
-                  <div>
-                    <div class="game-title">War Robots</div>
-                    <div class="game-sub">Official Web Shop (shop.warrobots.com)</div>
-                  </div>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" id="dash-wr-enabled" checked>
-                  <span class="slider"></span>
-                </label>
-              </div>
-
-              <!-- Live Product Preview -->
-              <div class="product-preview-wrap">
-                <img src="https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png" class="product-preview-thumb" id="wr-product-img" alt="WR Supplies" onerror="this.src='https://market.my.games/favicon.ico'">
-                <div class="product-preview-info">
-                  <div class="product-preview-title" id="wr-product-title">Ежедневный подарок (Data Pad / Ресурсы)</div>
-                  <div class="cooldown-badge ready" id="wr-cooldown-badge">Готово к сбору! 🎁</div>
+          <!-- War Robots Legion Card -->
+          <div class="legion-card">
+            <div class="card-row card-row-header">
+              <div class="card-title-group">
+                <div class="card-icon">🤖</div>
+                <div>
+                  <div class="card-title">War Robots</div>
+                  <div class="card-desc">Official Web Shop (shop.warrobots.com)</div>
                 </div>
               </div>
+              <label class="win-switch">
+                <input type="checkbox" id="dash-wr-enabled" checked>
+                <span class="win-slider"></span>
+              </label>
+            </div>
 
-              <div class="card-body">
-                <div class="form-group" style="margin-bottom: 8px;">
-                  <label class="form-label" style="font-size: 11px;">Pilot ID</label>
-                  <input type="text" class="input-field" id="dash-wr-player-id" data-i18n-ph="ph_dash_wr_id" placeholder="Введите ваш Pilot ID" style="padding: 9px 12px; font-size: 13px;">
+            <!-- Product / Cooldown Banner -->
+            <div class="product-banner">
+              <img src="https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png" class="product-thumb" id="wr-product-img" alt="WR Gift" onerror="this.src='/static/assets/icon.png'">
+              <div class="product-info">
+                <div class="product-name" id="wr-product-title">Ежедневный бесплатный подарок (Data Pad / Ресурсы)</div>
+                <div class="cooldown-badge ready" id="wr-cooldown-badge">Готово к сбору! 🎁</div>
+              </div>
+            </div>
+
+            <!-- Fields Grid -->
+            <div class="card-body">
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label">Pilot ID</label>
+                  <input type="text" class="win-input" id="dash-wr-player-id" placeholder="Введите ваш Pilot ID" data-i18n-ph="ph_dash_wr_id">
                 </div>
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" style="font-size: 11px;" data-i18n="lbl_platform">Платформа</label>
-                  <select class="select-field" id="dash-wr-platform" style="padding: 9px 12px; font-size: 13px;">
+                <div class="form-group">
+                  <label class="form-label" data-i18n="lbl_platform">Платформа</label>
+                  <select class="win-select" id="dash-wr-platform">
                     <option value="crossplay">Cross-platform (Android / iOS / PC / Steam)</option>
                   </select>
                 </div>
+              </div>
+
+              <div class="card-actions-bar">
                 <button class="btn btn-secondary btn-full" id="btn-collect-wr">
                   <span>🎁</span> <span data-i18n="btn_claim_wr">Забрать</span>
                 </button>
               </div>
             </div>
-
           </div>
 
           <!-- Mini Terminal Preview -->
-          <div class="glass-card" style="padding: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);" data-i18n="lbl_recent_events">Последние события</span>
-              <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="btn-to-console">
+          <div class="legion-card" style="margin-top: 16px;">
+            <div class="card-row card-row-sm">
+              <div class="card-title-group">
+                <span class="form-label" style="margin: 0;" data-i18n="lbl_recent_events">Последние события</span>
+              </div>
+              <button class="btn btn-subtle btn-sm" id="btn-to-console">
                 <span data-i18n="btn_full_console">Вся консоль →</span>
               </button>
             </div>
-            <div id="mini-log" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #94a3b8; line-height: 1.5;">
+            <div class="mini-terminal" id="mini-log">
               Ожидание команд...
             </div>
           </div>
         </section>
 
-        <!-- ================= TAB 2: HISTORY ================= -->
+        <!-- ================= TAB 2: PROMO CODES ================= -->
+        <section id="tab-promocodes" class="tab-content">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title" data-i18n="promo_title">Активация промокодов</h1>
+              <p class="view-subtitle" data-i18n="promo_sub">Быстрый ввод и применение официальных промокодов для War Robots</p>
+            </div>
+          </div>
+
+          <div class="legion-card" style="max-width: 650px;">
+            <div class="form-group">
+              <label class="form-label" data-i18n="promo_lbl_code">Промокод</label>
+              <input type="text" class="win-input" id="promo-input-code" placeholder="Например: WR-ROBOTS-2026" style="text-transform: uppercase;">
+            </div>
+
+            <div style="margin-top: 16px;">
+              <button class="btn btn-primary btn-full" id="btn-promo-submit">
+                <span>🚀</span> <span data-i18n="promo_btn_submit">Активировать промокод</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= TAB 3: HISTORY ================= -->
         <section id="tab-history" class="tab-content">
           <div class="view-header">
-            <div class="view-title-group">
-              <h1 data-i18n="hist_title">Журнал собранных наград</h1>
-              <p data-i18n="hist_sub">История всех успешных сборов, подарков и акций с прямыми ссылками на предметы</p>
+            <div>
+              <h1 class="view-title" data-i18n="hist_title">Журнал собранных наград</h1>
+              <p class="view-subtitle" data-i18n="hist_sub">История всех успешных сборов и бесплатных предметов из магазина</p>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div class="header-actions">
               <button class="btn btn-secondary" id="btn-refresh-history">
                 <span>🔄</span> <span data-i18n="btn_refresh">Обновить</span>
               </button>
               <button class="btn btn-secondary" id="btn-clear-history">
-                <span>🗑️</span> <span data-i18n="btn_clear_history">Очистить историю</span>
+                <span>🗑️</span> <span data-i18n="btn_clear_history">Очистить</span>
               </button>
             </div>
           </div>
 
-          <div class="history-container">
-            <table class="history-table">
+          <div class="legion-card table-card">
+            <table class="win-table">
               <thead>
                 <tr>
                   <th style="width: 170px;" data-i18n="col_date">Дата и время</th>
@@ -204,216 +222,187 @@
                 <!-- Dynamically populated rows -->
               </tbody>
             </table>
-            <div class="history-empty-state" id="history-empty" style="display: none;">
-              <div style="font-size: 40px; margin-bottom: 10px;">🎁</div>
-              <div style="font-size: 15px; font-weight: 600; color: #fff;" data-i18n="hist_empty_title">Наград пока не собрано</div>
-              <p style="font-size: 13px; margin-top: 4px;" data-i18n="hist_empty_desc">Нажмите «Забрать все награды» на главной панели, чтобы пополнить журнал!</p>
+            <div class="empty-state" id="history-empty" style="display: none;">
+              <div style="font-size: 36px; margin-bottom: 8px;">🎁</div>
+              <div style="font-weight: 600; color: #fff;" data-i18n="hist_empty_title">Наград пока не собрано</div>
+              <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;" data-i18n="hist_empty_desc">Нажмите «Забрать награды» на дашборде, чтобы пополнить журнал!</p>
             </div>
           </div>
         </section>
 
-        <!-- ================= TAB 3: PROMO CODES ================= -->
-        <section id="tab-promocodes" class="tab-content">
-          <div class="view-header">
-            <div class="view-title-group">
-              <h1 data-i18n="promo_title">Активация промокодов</h1>
-              <p data-i18n="promo_sub">Автоматический ввод промо-кодов для ваших игр в один клик</p>
-            </div>
-          </div>
-
-          <div class="glass-card promocode-card">
-            <div class="form-group">
-              <label class="form-label" data-i18n="promo_lbl_code">Промокод</label>
-              <input type="text" class="input-field" id="promo-input-code" placeholder="Например: WR-ROBOTS-2026" style="text-transform: uppercase;">
-            </div>
-
-            <button class="btn btn-primary btn-full" id="btn-promo-submit">
-              <span>🚀</span> <span data-i18n="promo_btn_submit">Активировать промокод</span>
-            </button>
-          </div>
-        </section>
-
-        <!-- ================= TAB 4: AUTH & LOGIN ================= -->
-        <section id="tab-auth" class="tab-content">
-          <div class="view-header">
-            <div class="view-title-group">
-              <h1 data-i18n="auth_title">Авторизация в MY.GAMES</h1>
-              <p data-i18n="auth_sub">Безопасный вход через браузер без передачи паролей сторонним скриптам</p>
-            </div>
-            <div style="display: flex; gap: 10px;">
-              <button class="btn btn-secondary" id="btn-check-session">
-                <span>🔄</span> <span data-i18n="btn_check_session">Проверить сессию</span>
-              </button>
-              <button class="btn btn-secondary" id="btn-logout-session" style="color: #f87171; border-color: rgba(248, 113, 113, 0.3);">
-                <span>🚪</span> <span data-i18n="btn_logout">Выйти из аккаунта</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="glass-card" style="max-width: 680px;">
-            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
-              <div style="font-size: 40px;" id="auth-status-icon">🔒</div>
-              <div>
-                <h3 style="font-size: 18px; margin-bottom: 4px;" id="auth-status-title">Статус: Требуется вход</h3>
-                <p style="font-size: 13px; color: var(--text-muted);" id="auth-status-desc">
-                  Для получения наград необходимо один раз авторизоваться в магазине MY.GAMES.
-                </p>
-              </div>
-            </div>
-
-            <div style="background: rgba(0,0,0,0.3); padding: 18px; border-radius: var(--radius-md); margin-bottom: 22px; font-size: 13px; line-height: 1.6; color: #cbd5e1;">
-              <b style="color: #fff;" data-i18n="auth_how_title">Как это работает:</b>
-              <ol style="padding-left: 20px; margin-top: 8px;">
-                <li data-i18n="auth_step_1">Нажмите кнопку <b>«Открыть окно входа»</b> ниже.</li>
-                <li data-i18n="auth_step_2">В открывшемся окне официального браузера выполните вход (VK ID, логин/пароль, почта или Google).</li>
-                <li data-i18n="auth_step_3">После успешного входа на сайт окно само закроется или нажмите «Я вошёл».</li>
-                <li data-i18n="auth_step_4">Сессия сохраняется на несколько месяцев (Sliding Session) — повторно входить не придётся!</li>
-              </ol>
-            </div>
-
-            <button class="btn btn-primary btn-large btn-full" id="btn-launch-login">
-              <span>🚀</span> <span data-i18n="btn_open_login">Открыть форму входа в MY.GAMES</span>
-            </button>
-            <button class="btn btn-secondary btn-large btn-full" id="btn-finish-login" style="display: none; margin-top: 12px; background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7;">
-              <span>✅</span> <span data-i18n="btn_finish_login">Я вошёл в аккаунт (Завершить и сохранить)</span>
-            </button>
-          </div>
-        </section>
-
-        <!-- ================= TAB 5: SETTINGS ================= -->
+        <!-- ================= TAB 4: SETTINGS ================= -->
         <section id="tab-settings" class="tab-content">
           <div class="view-header">
-            <div class="view-title-group">
-              <h1 data-i18n="cfg_title">Параметры и Настройки</h1>
-              <p data-i18n="cfg_sub">Редактируйте параметры прямо в окне без ручной правки файлов конфигурации</p>
+            <div>
+              <h1 class="view-title" data-i18n="cfg_title">Параметры и Настройки</h1>
+              <p class="view-subtitle" data-i18n="cfg_sub">Интеграция с Windows, системный трей, параметры автосбора и оповещения</p>
             </div>
             <button class="btn btn-primary" id="btn-save-settings">
               <span>💾</span> <span data-i18n="btn_save_cfg">Сохранить настройки</span>
             </button>
           </div>
 
-          <div class="cards-grid">
+          <!-- Section 1: Windows & System Tray -->
+          <div class="settings-group-label" data-i18n="cfg_group_windows">ИНТЕГРАЦИЯ С WINDOWS & ТРЕЙ</div>
+          <div class="legion-card">
             
-            <!-- App Core Settings -->
-            <div class="glass-card">
-              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">⚙️ <span data-i18n="cfg_section_app">Параметры приложения</span></h3>
-              
-              <!-- Daemon Mode Toggle -->
-              <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-                <div>
-                  <div style="font-size: 14px; font-weight: 600; color: #6ee7b7;" data-i18n="cfg_daemon_title">Автоматический сбор по расписанию</div>
-                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_daemon_desc">Регулярно проверять и забирать подарки каждые N часов без вашего участия</div>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" id="cfg-daemon-enabled">
-                  <span class="slider"></span>
-                </label>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <div class="setting-title" data-i18n="cfg_autostart_title">Запуск вместе с Windows</div>
+                <div class="setting-desc" data-i18n="cfg_autostart_desc">Автоматически запускать сборщик в фоне при старте системы (без открытия консоли)</div>
               </div>
+              <label class="win-switch">
+                <input type="checkbox" id="cfg-autostart">
+                <span class="win-slider"></span>
+              </label>
+            </div>
 
-              <div class="form-group" style="margin-top: 14px;">
-                <label class="form-label" data-i18n="cfg_lbl_interval">Интервал проверки (в часах)</label>
-                <input type="number" class="input-field" id="cfg-interval" min="1" max="48" value="12">
+            <div class="setting-row">
+              <div class="setting-meta">
+                <div class="setting-title" data-i18n="cfg_tray_title">Сворачивать в системный трей</div>
+                <div class="setting-desc" data-i18n="cfg_tray_desc">При нажатии на крестик [X] окно закрывается, а приложение продолжает тихо работать в трее</div>
               </div>
+              <label class="win-switch">
+                <input type="checkbox" id="cfg-minimize-to-tray" checked>
+                <span class="win-slider"></span>
+              </label>
+            </div>
 
-              <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                  <div style="font-size: 14px; font-weight: 600; color: #fff;" data-i18n="cfg_headless_title">Скрытый режим браузера (Headless)</div>
-                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_headless_desc">Браузер работает невидимо в памяти без всплывающих окон на экране</div>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" id="cfg-headless" checked>
-                  <span class="slider"></span>
-                </label>
+            <div class="setting-row">
+              <div class="setting-meta">
+                <div class="setting-title" data-i18n="cfg_minimized_title">Запускать свёрнутым</div>
+                <div class="setting-desc" data-i18n="cfg_minimized_desc">При автозапуске не показывать окно на экране, а сразу прятать значок в системный трей</div>
               </div>
+              <label class="win-switch">
+                <input type="checkbox" id="cfg-start-minimized">
+                <span class="win-slider"></span>
+              </label>
+            </div>
 
-              <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                  <div style="font-size: 14px; font-weight: 600; color: #fff;" data-i18n="cfg_shot_title">Скриншот при ошибке</div>
-                  <div style="font-size: 12px; color: var(--text-muted);" data-i18n="cfg_shot_desc">Сохранять снимок экрана в папку logs/screenshots</div>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" id="cfg-screenshot" checked>
-                  <span class="slider"></span>
-                </label>
+          </div>
+
+          <!-- Section 2: Automation & Scheduler -->
+          <div class="settings-group-label" style="margin-top: 20px;" data-i18n="cfg_group_daemon">АВТОМАТИЗАЦИЯ И СБОР</div>
+          <div class="legion-card">
+            
+            <div class="setting-row">
+              <div class="setting-meta">
+                <div class="setting-title" data-i18n="cfg_daemon_title">Автоматический фоновый сбор</div>
+                <div class="setting-desc" data-i18n="cfg_daemon_desc">Фоновый планировщик проверяет магазин при включении ПК, выходе из сна и по расписанию</div>
+              </div>
+              <label class="win-switch">
+                <input type="checkbox" id="cfg-daemon-enabled">
+                <span class="win-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-meta">
+                <div class="setting-title" data-i18n="cfg_lbl_interval">Интервал периодической проверки</div>
+                <div class="setting-desc" data-i18n="cfg_desc_interval">Периодичность фоновой проверки магазина (в часах)</div>
+              </div>
+              <div style="width: 100px;">
+                <input type="number" class="win-input" id="cfg-interval" min="1" max="48" value="12">
               </div>
             </div>
 
-            <!-- Games Settings -->
-            <div class="glass-card">
-              <h3 style="font-size: 16px; margin-bottom: 18px; color: #fff;">🎮 <span data-i18n="cfg_section_games">Игровые профили</span></h3>
-              
+            <div class="setting-row">
+              <div class="setting-meta">
+                <div class="setting-title" data-i18n="cfg_headless_title">Скрытый режим браузера (Headless)</div>
+                <div class="setting-desc" data-i18n="cfg_headless_desc">Браузер работает невидимо в памяти без всплывающих окон на рабочем столе</div>
+              </div>
+              <label class="win-switch">
+                <input type="checkbox" id="cfg-headless" checked>
+                <span class="win-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-meta">
+                <div class="setting-title" data-i18n="cfg_shot_title">Скриншот при ошибке</div>
+                <div class="setting-desc" data-i18n="cfg_shot_desc">Сохранять снимок экрана в папку logs/screenshots в случае сбоя</div>
+              </div>
+              <label class="win-switch">
+                <input type="checkbox" id="cfg-screenshot" checked>
+                <span class="win-slider"></span>
+              </label>
+            </div>
+
+          </div>
+
+          <!-- Section 3: Game Profiles -->
+          <div class="settings-group-label" style="margin-top: 20px;" data-i18n="cfg_section_games">ИГРОВОЙ ПРОФИЛЬ</div>
+          <div class="legion-card">
+            <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label">War Robots: Pilot ID</label>
-                <input type="text" class="input-field" id="cfg-wr-player-id" data-i18n-ph="ph_cfg_wr_id" placeholder="Введите Pilot ID">
+                <input type="text" class="win-input" id="cfg-wr-player-id" placeholder="Введите Pilot ID" data-i18n-ph="ph_cfg_wr_id">
               </div>
-
               <div class="form-group">
                 <label class="form-label" data-i18n="lbl_platform">War Robots: Платформа</label>
-                <select class="select-field" id="cfg-wr-platform">
+                <select class="win-select" id="cfg-wr-platform">
                   <option value="crossplay">Cross-platform (Android / iOS / PC / Steam)</option>
                 </select>
               </div>
             </div>
-
           </div>
 
-          <!-- Notifications Settings -->
-          <div class="glass-card" style="margin-top: 10px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
-              <h3 style="font-size: 16px; color: #fff;">🔔 <span data-i18n="cfg_notify_title">Оповещения в мессенджеры</span></h3>
-              <button class="btn btn-secondary" id="btn-test-notification">
+          <!-- Section 4: Notifications -->
+          <div class="settings-group-label" style="margin-top: 20px;" data-i18n="cfg_notify_title">ОПОВЕЩЕНИЯ В МЕССЕНДЖЕРЫ</div>
+          <div class="legion-card">
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+              <button class="btn btn-secondary btn-sm" id="btn-test-notification">
                 <span>🧪</span> <span data-i18n="btn_test_notify">Отправить тест</span>
               </button>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-              
+            <div class="form-grid-2">
               <!-- Telegram -->
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <b style="font-size: 14px; color: #38bdf8;">Telegram Бот</b>
-                  <label class="switch">
+              <div class="subcard">
+                <div class="setting-row" style="padding: 0 0 10px 0; border: none;">
+                  <div style="font-weight: 600; color: #4cc2ff;">Telegram Бот</div>
+                  <label class="win-switch">
                     <input type="checkbox" id="cfg-tg-enabled">
-                    <span class="slider"></span>
+                    <span class="win-slider"></span>
                   </label>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Bot Token</label>
-                  <input type="text" class="input-field" id="cfg-tg-token" placeholder="123456789:ABCdefGhIjkLm...">
+                  <input type="text" class="win-input" id="cfg-tg-token" placeholder="123456789:ABCdefGhIjkLm...">
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="margin-top: 8px;">
                   <label class="form-label">Chat ID</label>
-                  <input type="text" class="input-field" id="cfg-tg-chat" placeholder="123456789">
+                  <input type="text" class="win-input" id="cfg-tg-chat" placeholder="123456789">
                 </div>
               </div>
 
               <!-- Discord -->
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <b style="font-size: 14px; color: #818cf8;">Discord Webhook</b>
-                  <label class="switch">
+              <div class="subcard">
+                <div class="setting-row" style="padding: 0 0 10px 0; border: none;">
+                  <div style="font-weight: 600; color: #818cf8;">Discord Webhook</div>
+                  <label class="win-switch">
                     <input type="checkbox" id="cfg-dc-enabled">
-                    <span class="slider"></span>
+                    <span class="win-slider"></span>
                   </label>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Webhook URL</label>
-                  <input type="text" class="input-field" id="cfg-dc-webhook" placeholder="https://discord.com/api/webhooks/...">
+                  <input type="text" class="win-input" id="cfg-dc-webhook" placeholder="https://discord.com/api/webhooks/...">
                 </div>
               </div>
-
             </div>
           </div>
+
         </section>
 
-        <!-- ================= TAB 6: CONSOLE ================= -->
+        <!-- ================= TAB 5: CONSOLE ================= -->
         <section id="tab-console" class="tab-content">
           <div class="view-header">
-            <div class="view-title-group">
-              <h1 data-i18n="console_title">Живая консоль (Live Logs)</h1>
-              <p data-i18n="console_sub">Мониторинг событий, статусов сбора и системных сообщений в реальном времени</p>
+            <div>
+              <h1 class="view-title" data-i18n="console_title">Живая консоль (Live Logs)</h1>
+              <p class="view-subtitle" data-i18n="console_sub">События, статусы сбора и системные сообщения в реальном времени</p>
             </div>
-            <div style="display: flex; gap: 10px;">
+            <div class="header-actions">
               <button class="btn btn-secondary" id="btn-copy-logs">
                 <span>📋</span> <span data-i18n="btn_copy_logs">Скопировать логи</span>
               </button>
@@ -423,15 +412,13 @@
             </div>
           </div>
 
-          <div class="terminal-card">
-            <div class="terminal-header">
-              <div class="terminal-dots">
-                <span class="dot dot-red"></span>
-                <span class="dot dot-yellow"></span>
-                <span class="dot dot-green"></span>
+          <div class="terminal-container">
+            <div class="terminal-bar">
+              <div class="terminal-tab">
+                <span class="terminal-tab-dot"></span>
+                <span>TOOLKIT_CONSOLE</span>
               </div>
-              <div class="terminal-title">AUTO_COLLECT_MYGAMES_SHELL</div>
-              <div style="font-size: 11px; color: var(--accent-emerald);">● ACTIVE</div>
+              <div class="terminal-status">● RUNNING</div>
             </div>
             <div class="terminal-body" id="terminal-output">
               <!-- Log lines will be appended here -->
@@ -443,7 +430,7 @@
     </div>
   </div>
 
-  <!-- Toast Container -->
+  <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
   <script src="/static/app.js"></script>

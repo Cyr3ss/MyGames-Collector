@@ -23,6 +23,10 @@ from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from playwright.sync_api import sync_playwright, BrowserContext, Page
 
+import winreg
+import pystray
+from PIL import Image, ImageDraw
+
 # =====================================================================
 #                      BASE SETUP & PATHS
 # =====================================================================
@@ -72,6 +76,46 @@ def set_low_process_priority():
         except Exception:
             pass
 
+
+# =====================================================================
+#                      WINDOWS AUTOSTART REGISTRY
+# =====================================================================
+
+AUTOSTART_REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+AUTOSTART_APP_NAME = "WR_Rewards_Toolkit"
+
+def get_windows_autostart() -> bool:
+    """Checks whether the application is set to start with Windows in HKCU\\...\\Run."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, winreg.KEY_READ) as key:
+            val, _ = winreg.QueryValueEx(key, AUTOSTART_APP_NAME)
+            return bool(val)
+    except OSError:
+        return False
+
+def set_windows_autostart(enable: bool) -> bool:
+    """Enables or disables Windows autostart without requiring administrator rights."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, winreg.KEY_SET_VALUE) as key:
+            if enable:
+                base_dir = Path(__file__).resolve().parent
+                venv_pythonw = base_dir / ".venv" / "Scripts" / "pythonw.exe"
+                pythonw_exe = str(venv_pythonw) if venv_pythonw.exists() else sys.executable.replace("python.exe", "pythonw.exe")
+                cmd_str = f'"{pythonw_exe}" "{base_dir / "app.py"}" --minimized'
+                winreg.SetValueEx(key, AUTOSTART_APP_NAME, 0, winreg.REG_SZ, cmd_str)
+                add_log("INFO", f"Windows autostart registered: {cmd_str}")
+            else:
+                try:
+                    winreg.DeleteValue(key, AUTOSTART_APP_NAME)
+                    add_log("INFO", "Windows autostart entry removed.")
+                except FileNotFoundError:
+                    pass
+            return True
+    except Exception as e:
+        add_log("ERROR", f"Failed to set Windows autostart: {e}")
+        return False
+
+
 # =====================================================================
 #                      LOGGING & IN-MEMORY CONSOLE
 # =====================================================================
@@ -100,7 +144,9 @@ DEFAULT_CONFIG = {
         "daemon_enabled": False,
         "action_delay_ms": 1500,
         "screenshot_on_error": True,
-        "check_interval_hours": 12
+        "check_interval_hours": 12,
+        "minimize_to_tray": True,
+        "start_minimized": False
     },
     "notifications": {
         "telegram": {"enabled": False, "bot_token": "", "chat_id": ""},
@@ -141,7 +187,7 @@ def save_config(cfg: Dict[str, Any]):
 
 
 # =====================================================================
-#                      HISTORY PERSISTENCE
+#                      HISTORY PERSISTENCE & AUDIT LOGS
 # =====================================================================
 
 def load_history() -> List[Dict[str, Any]]:
@@ -228,7 +274,6 @@ def find_browser_for_app_window() -> Optional[str]:
     # 1. Windows Registry (Chrome, Edge, Brave)
     if sys.platform == "win32":
         try:
-            import winreg
             for exe_name in ["chrome.exe", "msedge.exe", "brave.exe"]:
                 for root in [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]:
                     key_path = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}"
@@ -298,33 +343,32 @@ class BrowserManager:
     def clean_stale_locks(self):
         """Cleans up browser singleton locks left behind by interrupted or crashed instances."""
         lock_files = ["SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile"]
-        for lock_name in lock_files:
-            p = self.profile_dir / lock_name
-            if p.exists():
+        for fname in lock_files:
+            target = self.profile_dir / fname
+            if target.exists():
                 try:
-                    if p.is_dir():
-                        shutil.rmtree(p, ignore_errors=True)
-                    else:
-                        p.unlink(missing_ok=True)
-                    add_log("DEBUG", f"Removed stale browser lock: {lock_name}")
-                except Exception as e:
-                    add_log("DEBUG", f"Could not remove lock {lock_name}: {e}")
+                    if target.is_file() or target.is_symlink():
+                        target.unlink(missing_ok=True)
+                    elif target.is_dir():
+                        shutil.rmtree(target, ignore_errors=True)
+                except Exception:
+                    pass
 
     def start(self) -> BrowserContext:
         self.clean_stale_locks()
-        set_low_process_priority()
         self._playwright = sync_playwright().start()
-        browser_exe = find_browser_for_app_window()
 
         args = [
             "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
+            "--no-default-browser-check",
             "--disable-infobars",
-            "--disable-dev-shm-usage"
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--window-size=1366,768"
         ]
-        if self.headless:
-            args.extend(["--disable-gpu", "--renderer-process-limit=2"])
 
+        browser_exe = find_browser_for_app_window()
         kwargs = {
             "user_data_dir": str(self.profile_dir),
             "headless": self.headless,
@@ -362,42 +406,46 @@ class BrowserManager:
 
 class Notifier:
     def __init__(self, config: Dict[str, Any]):
-        self.tg = config.get("notifications", {}).get("telegram", {})
-        self.dc = config.get("notifications", {}).get("discord", {})
+        self.cfg = config.get("notifications", {})
 
     def send(self, message: str):
-        if self.tg.get("enabled"):
-            token = self.tg.get("bot_token")
-            chat_id = self.tg.get("chat_id")
-            if token and chat_id:
-                try:
-                    requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"}, timeout=10)
-                    add_log("INFO", "Notification sent to Telegram.")
-                except Exception as e:
-                    add_log("ERROR", f"Telegram error: {e}")
+        tg = self.cfg.get("telegram", {})
+        if tg.get("enabled") and tg.get("bot_token") and tg.get("chat_id"):
+            self._send_telegram(tg["bot_token"], tg["chat_id"], message)
 
-        if self.dc.get("enabled"):
-            wh = self.dc.get("webhook_url")
-            if wh:
-                try:
-                    requests.post(wh, json={"content": message}, timeout=10)
-                    add_log("INFO", "Notification sent to Discord.")
-                except Exception as e:
-                    add_log("ERROR", f"Discord error: {e}")
+        dc = self.cfg.get("discord", {})
+        if dc.get("enabled") and dc.get("webhook_url"):
+            self._send_discord(dc["webhook_url"], message)
+
+    def _send_telegram(self, token: str, chat_id: str, text: str):
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        try:
+            requests.post(url, json=payload, timeout=8)
+        except Exception as e:
+            add_log("DEBUG", f"Telegram error: {e}")
+
+    def _send_discord(self, webhook_url: str, text: str):
+        clean_text = text.replace("<b>", "**").replace("</b>", "**").replace("<i>", "*").replace("</i>", "*")
+        payload = {"content": clean_text}
+        try:
+            requests.post(webhook_url, json=payload, timeout=8)
+        except Exception as e:
+            add_log("DEBUG", f"Discord error: {e}")
 
 
 # =====================================================================
-#                      GAME REWARD COLLECTORS
+#                      WAR ROBOTS COLLECTOR
 # =====================================================================
 
 class WarRobotsCollector:
     def __init__(self, game_cfg: Dict[str, Any], app_cfg: Dict[str, Any]):
         self.name = "War Robots"
-        self.cfg = game_cfg
-        self.player_id = str(self.cfg.get("player_id", "")).strip()
-        self.platform = self.cfg.get("platform", "crossplay").lower()
-        self.shop_url = self.cfg.get("market_url", "https://shop.warrobots.com/")
-        if "market.my.games" in self.shop_url:
+        self.player_id = game_cfg.get("player_id", "").strip()
+        self.platform = game_cfg.get("platform", "crossplay").lower()
+        self.delay = app_cfg.get("action_delay_ms", 1500) / 1000.0
+        self.shop_url = game_cfg.get("market_url", "https://shop.warrobots.com/")
+        if not self.shop_url or not self.shop_url.startswith("http"):
             self.shop_url = "https://shop.warrobots.com/"
 
     def _dismiss_overlays(self, page: Page):
@@ -531,7 +579,7 @@ class WarRobotsCollector:
 #                      FASTAPI WEB SERVER
 # =====================================================================
 
-app = FastAPI(title="Auto Collect MyGames")
+app = FastAPI(title="WR Rewards Toolkit")
 
 STATE = {
     "is_running": False,
@@ -579,36 +627,72 @@ def api_save_config(new_config: ConfigModel):
         add_log("INFO", "Configuration saved.")
         return {"status": "ok", "message": "Settings saved!"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(status_code=500, content={"message": f"Save error: {e}"})
+
+@app.get("/api/system/settings")
+def api_get_system_settings():
+    cfg = load_config()
+    app_cfg = cfg.get("app", {})
+    return {
+        "autostart_windows": get_windows_autostart(),
+        "minimize_to_tray": app_cfg.get("minimize_to_tray", True),
+        "start_minimized": app_cfg.get("start_minimized", False)
+    }
+
+class SystemSettingsModel(BaseModel):
+    autostart_windows: Optional[bool] = None
+    minimize_to_tray: Optional[bool] = None
+    start_minimized: Optional[bool] = None
+
+@app.post("/api/system/settings")
+def api_save_system_settings(settings: SystemSettingsModel):
+    cfg = load_config()
+    if settings.autostart_windows is not None:
+        set_windows_autostart(settings.autostart_windows)
+    if settings.minimize_to_tray is not None:
+        cfg["app"]["minimize_to_tray"] = settings.minimize_to_tray
+    if settings.start_minimized is not None:
+        cfg["app"]["start_minimized"] = settings.start_minimized
+    save_config(cfg)
+    return {"status": "ok", "message": "System settings saved successfully!"}
 
 @app.get("/api/status")
 def api_get_status():
-    sess_dir = SESSIONS_DIR / "mygames_main"
-    has_session = sess_dir.exists() and any(sess_dir.iterdir()) if sess_dir.exists() else False
     cfg = load_config()
     daemon_enabled = cfg.get("app", {}).get("daemon_enabled", False)
     interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
-    last_daemon = STATE.get("last_daemon_run", 0)
-    now = time.time()
+    last_run = STATE.get("last_daemon_run", 0)
 
-    next_run_in = max(0, int(interval_sec - (now - last_daemon))) if (last_daemon > 0 and daemon_enabled) else (interval_sec if daemon_enabled else 0)
+    now = time.time()
+    next_run_in = max(0, int(interval_sec - (now - last_run))) if (daemon_enabled and last_run > 0) else 0
 
     return {
         "is_running": STATE["is_running"],
         "current_action": STATE["current_action"],
-        "has_session": has_session,
         "last_result": STATE["last_result"],
-        "last_run_summary_ru": STATE.get("last_run_summary_ru"),
-        "last_run_summary_en": STATE.get("last_run_summary_en"),
-        "last_run_status": STATE.get("last_run_status"),
+        "last_run_summary_ru": STATE["last_run_summary_ru"],
+        "last_run_summary_en": STATE["last_run_summary_en"],
+        "last_run_status": STATE["last_run_status"],
+        "has_session": True,
         "daemon_enabled": daemon_enabled,
         "next_daemon_run_in": next_run_in
     }
 
+@app.post("/api/daemon/toggle")
+def api_daemon_toggle():
+    cfg = load_config()
+    current = cfg.get("app", {}).get("daemon_enabled", False)
+    cfg["app"]["daemon_enabled"] = not current
+    save_config(cfg)
+    status_str = "включен" if cfg["app"]["daemon_enabled"] else "выключен"
+    add_log("INFO", f"Фоновый демон сбора наград {status_str}.")
+    return {"status": "ok", "daemon_enabled": cfg["app"]["daemon_enabled"]}
+
 @app.get("/api/logs")
 def api_get_logs(after: int = 0):
     with LOG_LOCK:
-        return {"logs": LOG_BUFFER[after:], "total": len(LOG_BUFFER)}
+        logs_slice = LOG_BUFFER[after:]
+        return {"logs": logs_slice, "total": len(LOG_BUFFER)}
 
 @app.post("/api/logs/clear")
 def api_clear_logs():
@@ -622,47 +706,24 @@ def api_get_history():
 
 @app.post("/api/history/clear")
 def api_clear_history():
-    if HISTORY_PATH.exists():
-        try:
-            with open(HISTORY_PATH, "w", encoding="utf-8") as f:
-                json.dump([], f)
-        except Exception:
-            pass
-    return {"status": "ok", "message": "History cleared!"}
-
-@app.post("/api/daemon/toggle")
-def api_daemon_toggle():
-    cfg = load_config()
-    current = cfg.get("app", {}).get("daemon_enabled", False)
-    new_state = not current
-    cfg["app"]["daemon_enabled"] = new_state
-    save_config(cfg)
-    if new_state:
-        STATE["last_daemon_run"] = time.time()
-    status_str = "ENABLED" if new_state else "DISABLED"
-    add_log("INFO", f"[Daemon] Auto-collection scheduler {status_str}.")
-    return {"status": "ok", "daemon_enabled": new_state}
+    try:
+        with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+            json.dump([], f)
+        return {"status": "ok", "message": "History cleared"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"Clear history error: {e}"})
 
 @app.get("/api/rewards/cooldowns")
 def api_get_cooldowns():
-    history = load_history()
-    last_checks = load_last_checks()
+    checks = load_last_checks()
     now = datetime.datetime.now()
-
-    # War Robots check: daily reset at midnight
-    wr_claimed_today = False
-    wr_status_type = "ready"
     today_str = now.strftime("%Y-%m-%d")
 
-    for h in history:
-        if h.get("game") == "War Robots" and h.get("status") == "success":
-            if str(h.get("timestamp", "")).startswith(today_str):
-                wr_claimed_today = True
-                wr_status_type = "collected"
-                break
+    wr_check = checks.get("War Robots", {})
+    wr_claimed_today = False
+    wr_status_type = "ready"
 
-    wr_check = last_checks.get("War Robots", {})
-    if wr_check and str(wr_check.get("timestamp", "")).startswith(today_str):
+    if wr_check.get("timestamp", "").startswith(today_str):
         if wr_check.get("status_type") == "collected":
             wr_claimed_today = True
             wr_status_type = "collected"
@@ -686,45 +747,14 @@ def api_get_cooldowns():
         }
     }
 
-def verify_mygames_session() -> Dict[str, Any]:
-    """Actively checks if saved cookies in sessions/mygames_main are authorized on MY.GAMES."""
-    sess_dir = SESSIONS_DIR / "mygames_main"
-    if not sess_dir.exists() or not any(sess_dir.iterdir()):
-        return {"authenticated": False, "reason": "No session profile found"}
-
-    try:
-        with BrowserManager(headless=True, session_name="mygames_main") as bm:
-            page = bm.new_page()
-            page.goto("https://market.my.games/", wait_until="domcontentloaded", timeout=20000)
-            time.sleep(2.0)
-
-            login_el = page.query_selector('a[href*="login"], button:has-text("Войти"), button:has-text("Log in"), button:has-text("Sign in")')
-            avatar_el = page.query_selector('.styles_avatarWrapper__Jh7Lq, a[href*="profile"], [class*="avatar"], [class*="userProfile"]')
-
-            is_authed = avatar_el is not None or (login_el is None and "market.my.games" in page.url)
-            return {
-                "authenticated": is_authed,
-                "reason": "Active session verified" if is_authed else "Session expired or logged out"
-            }
-    except Exception as e:
-        return {"authenticated": False, "reason": f"Verification error: {e}"}
-
+# Stub backward-compatible session check
 @app.get("/api/session/check")
 def api_session_check():
-    return verify_mygames_session()
+    return {"authenticated": True, "reason": "War Robots uses direct Pilot ID"}
 
 @app.post("/api/session/logout")
 def api_session_logout():
-    sess_dir = SESSIONS_DIR / "mygames_main"
-    if sess_dir.exists():
-        try:
-            shutil.rmtree(sess_dir, ignore_errors=True)
-            sess_dir.mkdir(parents=True, exist_ok=True)
-            add_log("INFO", "Session cleared. Account logged out.")
-            return {"status": "ok", "message": "Logged out successfully!"}
-        except Exception as e:
-            return JSONResponse(status_code=500, content={"message": f"Logout error: {e}"})
-    return {"status": "ok", "message": "No active session."}
+    return {"status": "ok", "message": "Ready"}
 
 def _run_collection_task(target: str = "all", force_head: bool = False, trigger_source: str = "manual"):
     STATE["is_running"] = True
@@ -781,7 +811,7 @@ def _run_collection_task(target: str = "all", force_head: bool = False, trigger_
                 trigger_source=trigger_source
             )
 
-        # Update last run summary for the top status pill
+        # Update last run summary for the status pill
         total_collected = sum(len(r.get("items_collected", [])) for r in results)
         any_errors = any(not r.get("success", False) for r in results)
         now_time = datetime.datetime.now().strftime("%H:%M")
@@ -806,7 +836,7 @@ def _run_collection_task(target: str = "all", force_head: bool = False, trigger_
                 STATE["last_run_status"] = "success"
 
         # Send notification report
-        lines = ["<b>🎁 Auto Collect MyGames: Report</b>\n"]
+        lines = ["<b>🎁 WR Rewards Toolkit: Report</b>\n"]
         for r in results:
             icon = "✅" if r["success"] else "❌"
             lines.append(f"{icon} <b>{r['game']}</b>: {r['message']}")
@@ -839,62 +869,9 @@ def api_action_collect(target: str = "all", force_head: bool = False):
     threading.Thread(target=_run_collection_task, args=(target, force_head, "gui"), daemon=True).start()
     return {"status": "started", "message": "Reward collection started!"}
 
-def _run_login_task(target: str):
-    STATE["is_running"] = True
-    STATE["stop_login"] = False
-    STATE["current_action"] = "Browser Authentication"
-    add_log("INFO", "=== STARTING AUTHENTICATION WINDOW ===")
-    add_log("INFO", "Opening MY.GAMES login form...")
-
-    try:
-        url = "https://account.my.games/login/?continue=https://market.my.games/"
-        with BrowserManager(headless=False, session_name="mygames_main") as bm:
-            page = bm.new_page()
-            page.goto(url, wait_until="domcontentloaded")
-
-            while not STATE.get("stop_login", False):
-                try:
-                    if page.is_closed() or not bm.context or not bm.context.pages or all(p.is_closed() for p in bm.context.pages):
-                        add_log("INFO", "Browser window closed.")
-                        break
-
-                    if "market.my.games" in page.url and "account.my.games/login" not in page.url:
-                        add_log("SUCCESS", "Successful login detected! Saving session...")
-                        time.sleep(2.0)
-                        try:
-                            bm.context.close()
-                        except Exception:
-                            pass
-                        break
-
-                    time.sleep(0.5)
-                except Exception:
-                    break
-
-        add_log("SUCCESS", "MY.GAMES session saved successfully!")
-    except Exception as e:
-        add_log("ERROR", f"Authentication error: {e}")
-    finally:
-        STATE["is_running"] = False
-        STATE["stop_login"] = False
-        STATE["current_action"] = "idle"
-
-@app.post("/api/action/login")
-def api_action_login(target: str = "all"):
-    if STATE["is_running"]:
-        return JSONResponse(status_code=400, content={"message": "Operation already in progress!"})
-    threading.Thread(target=_run_login_task, args=(target,), daemon=True).start()
-    return {"status": "started", "message": "Opening login window..."}
-
-@app.post("/api/action/login/finish")
-def api_action_login_finish():
-    STATE["stop_login"] = True
-    add_log("INFO", "Finish login command received.")
-    return {"status": "ok", "message": "Authentication finished!"}
-
 @app.post("/api/action/test-notify")
 def api_test_notify():
-    Notifier(load_config()).send("🔔 <b>Auto Collect MyGames</b>: Test notification received!")
+    Notifier(load_config()).send("🔔 <b>WR Rewards Toolkit</b>: Test notification received!")
     add_log("INFO", "Test notification sent.")
     return {"status": "ok", "message": "Test notification sent!"}
 
@@ -916,7 +893,7 @@ def check_is_overdue(cfg: Dict[str, Any]) -> bool:
 
 def daemon_worker():
     """Background scheduler running with Below Normal CPU priority.
-    Only triggers after system reboot/start, or on PC wake-up IF rewards are overdue.
+    Triggers after system reboot/start, or on PC wake-up IF rewards are overdue.
     """
     set_low_process_priority()
     last_heartbeat = time.time()
@@ -927,16 +904,16 @@ def daemon_worker():
         cfg = load_config()
         if cfg.get("app", {}).get("daemon_enabled", False):
             if check_is_overdue(cfg):
-                add_log("INFO", "[Daemon] Запуск после старта системы: найдены несобранные награды (overdue). Сбор...")
+                add_log("INFO", "[Daemon] Запуск после старта: найдены несобранные подарки (overdue). Сбор...")
                 _run_collection_task(target="all", force_head=False, trigger_source="daemon_startup")
             else:
-                add_log("INFO", "[Daemon] Запуск после старта системы: все награды за текущий период уже собраны. Ожидание.")
+                add_log("INFO", "[Daemon] Запуск после старта: все подарки за текущий период уже собраны. Ожидание.")
     except Exception as e:
         add_log("DEBUG", f"Daemon startup check exception: {e}")
 
     while True:
         try:
-            time.sleep(60)  # Check once per minute with zero CPU impact
+            time.sleep(60)  # Check once per minute with near-zero CPU impact
             now = time.time()
             gap = now - last_heartbeat
             last_heartbeat = now
@@ -950,14 +927,13 @@ def daemon_worker():
             is_wake_up = gap > 180
 
             if is_wake_up:
-                # System just woke up from sleep or hibernate
                 if check_is_overdue(cfg):
-                    add_log("INFO", "[Daemon] Компьютер вышел из спящего режима: найдены доступные награды (overdue). Запуск сбора...")
+                    add_log("INFO", "[Daemon] Компьютер вышел из сна: найдены доступные награды (overdue). Запуск...")
                     _run_collection_task(target="all", force_head=False, trigger_source="daemon_wakeup")
                 else:
-                    add_log("DEBUG", "[Daemon] Компьютер вышел из спящего режима: награды уже собраны за этот период. Сбор не требуется.")
+                    add_log("DEBUG", "[Daemon] Компьютер вышел из сна: подарки уже собраны. Сбор не требуется.")
             else:
-                # Periodic fallback check (e.g. 12h): only collect if overdue!
+                # Periodic interval check: only collect if overdue!
                 interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
                 last_run = STATE.get("last_daemon_run", 0)
                 if (now - last_run >= interval_sec):
@@ -980,7 +956,7 @@ if UI_DIR.exists():
 
 
 # =====================================================================
-#                      LAUNCHER & CLI ENTRYPOINT
+#                      LAUNCHER, SYSTEM TRAY & WINDOW LIFECYCLE
 # =====================================================================
 
 def find_free_port(start_port: int = 18234) -> int:
@@ -1002,30 +978,8 @@ def wait_for_server(url: str, timeout: float = 15.0) -> bool:
             time.sleep(0.25)
     return False
 
-def run_daemon_service():
-    """Runs pure background daemon scheduler without launching any GUI window."""
-    set_low_process_priority()
-    add_log("INFO", "Starting Auto Collect MyGames in Silent Daemon Mode (No GUI)...")
-    port = find_free_port()
-    server_cfg = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
-    server = uvicorn.Server(server_cfg)
-    threading.Thread(target=server.run, daemon=True).start()
-    daemon_worker()
-
-def start_gui():
-    port = find_free_port()
-    app_url = f"http://127.0.0.1:{port}"
-
-    add_log("INFO", f"Starting UI server on {app_url}...")
-    server_cfg = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
-    server = uvicorn.Server(server_cfg)
-    threading.Thread(target=server.run, daemon=True).start()
-    threading.Thread(target=daemon_worker, daemon=True).start()
-
-    if not wait_for_server(app_url, timeout=12.0):
-        print("[!] Error: UI Server failed to start in time.")
-        return
-
+def open_app_window(app_url: str) -> Optional[subprocess.Popen]:
+    """Launches the app window using an installed Chromium browser or system default browser."""
     browser_exe = find_browser_for_app_window()
     gui_profile = SESSIONS_DIR / "gui_window_profile"
     gui_profile.mkdir(parents=True, exist_ok=True)
@@ -1041,36 +995,161 @@ def start_gui():
             "--disable-default-apps"
         ]
         try:
-            proc = subprocess.Popen(cmd)
-            proc.wait()
-            os._exit(0)
+            return subprocess.Popen(cmd)
         except Exception:
             webbrowser.open(app_url)
+            return None
     else:
         webbrowser.open(app_url)
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            os._exit(0)
+        return None
+
+class TrayManager:
+    """Manages the Windows notification area (System Tray) icon and context menu."""
+    def __init__(self, app_url: str):
+        self.app_url = app_url
+        self.gui_process: Optional[subprocess.Popen] = None
+        self.icon: Optional[pystray.Icon] = None
+        self.first_minimize_notified = False
+
+    def get_icon_image(self) -> Image.Image:
+        icon_path = BASE_DIR / "ui" / "assets" / "icon.ico"
+        if icon_path.exists():
+            try:
+                return Image.open(icon_path)
+            except Exception:
+                pass
+        png_path = BASE_DIR / "ui" / "assets" / "icon.png"
+        if png_path.exists():
+            try:
+                return Image.open(png_path)
+            except Exception:
+                pass
+        # Dynamic fallback
+        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([2, 2, 62, 62], radius=14, fill="#1e1e1e", outline="#0078d4", width=2)
+        draw.polygon([(32, 12), (50, 22), (50, 42), (32, 52), (14, 42), (14, 22)], fill="#262626", outline="#0078d4", width=2)
+        draw.polygon([(34, 18), (22, 33), (30, 33), (28, 46), (42, 30), (34, 30)], fill="#4cc2ff")
+        return img
+
+    def show_window(self, icon=None, item=None):
+        if self.gui_process and self.gui_process.poll() is None:
+            return
+        self.gui_process = open_app_window(self.app_url)
+
+    def claim_now(self, icon=None, item=None):
+        if STATE["is_running"]:
+            if self.icon:
+                try:
+                    self.icon.notify("Сбор уже выполняется...", "WR Rewards Toolkit")
+                except Exception:
+                    pass
+            return
+        add_log("INFO", "[Tray] Запуск сбора наград по команде из трея...")
+        threading.Thread(target=_run_collection_task, args=("war_robots", False, "tray"), daemon=True).start()
+        if self.icon:
+            try:
+                self.icon.notify("Запущен фоновый сбор наград War Robots...", "WR Rewards Toolkit")
+            except Exception:
+                pass
+
+    def exit_app(self, icon=None, item=None):
+        add_log("INFO", "[Tray] Завершение работы приложения...")
+        if self.gui_process and self.gui_process.poll() is None:
+            try:
+                self.gui_process.terminate()
+            except Exception:
+                pass
+        if self.icon:
+            try:
+                self.icon.stop()
+            except Exception:
+                pass
+        os._exit(0)
+
+    def setup_and_run(self):
+        img = self.get_icon_image()
+        menu = pystray.Menu(
+            pystray.MenuItem("⚡ WR Rewards Toolkit", self.show_window, default=True),
+            pystray.MenuItem("🎁 Забрать награду сейчас", self.claim_now),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("✕ Выход", self.exit_app)
+        )
+        self.icon = pystray.Icon("WR_Rewards_Toolkit", img, "WR Rewards Toolkit", menu)
+        self.icon.run_detached()
+
+def run_daemon_service():
+    """Runs pure background daemon scheduler without launching any GUI window."""
+    set_low_process_priority()
+    add_log("INFO", "Starting WR Rewards Toolkit in Silent Daemon Mode (No GUI)...")
+    port = find_free_port()
+    server_cfg = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(server_cfg)
+    threading.Thread(target=server.run, daemon=True).start()
+    daemon_worker()
+
+def start_gui(start_minimized: bool = False):
+    set_low_process_priority()
+    port = find_free_port()
+    app_url = f"http://127.0.0.1:{port}"
+
+    add_log("INFO", f"Starting UI server on {app_url}...")
+    server_cfg = uvicorn.Config(app=app, host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(server_cfg)
+    threading.Thread(target=server.run, daemon=True).start()
+    threading.Thread(target=daemon_worker, daemon=True).start()
+
+    if not wait_for_server(app_url, timeout=12.0):
+        print("[!] Error: UI Server failed to start in time.")
+        return
+
+    cfg = load_config()
+    app_cfg = cfg.get("app", {})
+    should_minimize = start_minimized or app_cfg.get("start_minimized", False)
+
+    tray_mgr = TrayManager(app_url)
+    tray_mgr.setup_and_run()
+
+    if not should_minimize:
+        tray_mgr.show_window()
+
+    # Main thread handles window lifecycle and minimize-to-tray logic
+    while True:
+        time.sleep(0.8)
+        if tray_mgr.gui_process is not None:
+            if tray_mgr.gui_process.poll() is not None:
+                # Browser window was closed by user
+                tray_mgr.gui_process = None
+                current_cfg = load_config()
+                min_to_tray = current_cfg.get("app", {}).get("minimize_to_tray", True)
+                if not min_to_tray:
+                    add_log("INFO", "Window closed and minimize_to_tray is disabled. Exiting...")
+                    tray_mgr.exit_app()
+                    break
+                else:
+                    add_log("INFO", "Window closed. Application continues running silently in system tray.")
+                    if not tray_mgr.first_minimize_notified and tray_mgr.icon:
+                        tray_mgr.first_minimize_notified = True
+                        try:
+                            tray_mgr.icon.notify("Приложение свёрнуто в системный трей.", "WR Rewards Toolkit")
+                        except Exception:
+                            pass
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Auto Collect MyGames")
+    parser = argparse.ArgumentParser(description="WR Rewards Toolkit")
     parser.add_argument("--run", choices=["all", "war_robots"], nargs="?", const="all", help="CLI: Claim rewards")
-    parser.add_argument("--login", action="store_true", help="CLI: Authenticate account")
     parser.add_argument("--head", action="store_true", help="CLI: Run with visible browser window")
     parser.add_argument("--daemon", action="store_true", help="Run background scheduler service without GUI")
+    parser.add_argument("--minimized", action="store_true", help="Start directly minimized to system tray")
     args = parser.parse_args()
 
     if args.run:
         _run_collection_task(args.run, force_head=args.head, trigger_source="cli")
-    elif args.login:
-        _run_login_task("all")
     elif args.daemon:
         run_daemon_service()
     else:
-        start_gui()
+        start_gui(start_minimized=args.minimized)
 
 if __name__ == "__main__":
     main()

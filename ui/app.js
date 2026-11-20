@@ -1,5 +1,5 @@
 // ==========================================================================
-// Auto Collect MyGames - Modern Desktop Client
+// WR Rewards Toolkit - Desktop UI Application
 // ==========================================================================
 
 let currentConfig = null;
@@ -17,137 +17,124 @@ let wasRunning = false;
 
 const TRANSLATIONS = {
   ru: {
-    nav_label: "Навигация",
+    nav_label: "НАВИГАЦИЯ",
     tab_dashboard: "Дашборд",
-    tab_history: "История сборов",
     tab_promocodes: "Промокоды",
-    tab_auth: "Авторизация",
+    tab_history: "История сборов",
     tab_settings: "Настройки",
     tab_console: "Живая консоль",
-    session_title: "MY.GAMES Профиль",
+    tray_active: "Трей активен",
     dash_title: "Центр управления наградами",
-    dash_sub: "Автоматический сбор ежедневных подарков и бесплатных наборов из магазинов",
+    dash_sub: "Автоматический сбор ежедневных подарков и предметов из официального магазина",
     btn_visible: "Запустить с окном",
-    btn_claim_all: "ЗАБРАТЬ ВСЕ НАГРАДЫ",
+    btn_claim_all: "ЗАБРАТЬ НАГРАДЫ",
     btn_claim_wr: "Забрать",
-    lbl_game_id: "Игровой ID (Game ID)",
     lbl_platform: "Платформа",
     lbl_recent_events: "Последние события",
     btn_full_console: "Вся консоль →",
     hist_title: "Журнал собранных наград",
-    hist_sub: "История всех успешных сборов, подарков и акций с прямыми ссылками на предметы",
+    hist_sub: "История всех успешных сборов и бесплатных предметов из магазина",
     btn_refresh: "Обновить",
-    btn_clear_history: "Очистить историю",
+    btn_clear_history: "Очистить",
     col_date: "Дата и время",
     col_game: "Игра",
     col_item: "Награда / Предмет",
     col_status: "Статус",
     hist_empty_title: "Наград пока не собрано",
-    hist_empty_desc: "Нажмите «Забрать все награды» на главной панели, чтобы пополнить журнал!",
+    hist_empty_desc: "Нажмите «Забрать награды» на дашборде, чтобы пополнить журнал!",
     promo_title: "Активация промокодов",
-    promo_sub: "Автоматический ввод промо-кодов для ваших игр в один клик",
+    promo_sub: "Быстрый ввод и применение официальных промокодов для War Robots",
     promo_lbl_code: "Промокод",
     promo_btn_submit: "Активировать промокод",
-    auth_title: "Авторизация в MY.GAMES",
-    auth_sub: "Безопасный вход через браузер без передачи паролей сторонним скриптам",
-    btn_check_session: "Проверить сессию",
-    btn_logout: "Выйти из аккаунта",
-    auth_how_title: "Как это работает:",
-    auth_step_1: "Нажмите кнопку <b>«Открыть окно входа»</b> ниже.",
-    auth_step_2: "В открывшемся окне официального браузера выполните вход (VK ID, логин/пароль, почта или Google).",
-    auth_step_3: "После успешного входа на сайт окно само закроется или нажмите «Я вошёл».",
-    auth_step_4: "Сессия сохраняется на несколько месяцев (Sliding Session) — повторно входить не придётся!",
-    btn_open_login: "Открыть форму входа в MY.GAMES",
-    btn_finish_login: "Я вошёл в аккаунт (Завершить и сохранить)",
     cfg_title: "Параметры и Настройки",
-    cfg_sub: "Редактируйте параметры прямо в окне без ручной правки файлов конфигурации",
+    cfg_sub: "Интеграция с Windows, системный трей, параметры автосбора и оповещения",
     btn_save_cfg: "Сохранить настройки",
-    cfg_section_app: "Параметры приложения",
-    cfg_daemon_title: "Автоматический сбор по расписанию",
-    cfg_daemon_desc: "Регулярно собирать подарки в фоне каждые N часов без вашего участия",
-    cfg_lbl_interval: "Интервал проверки (в часах)",
+    cfg_group_windows: "ИНТЕГРАЦИЯ С WINDOWS & ТРЕЙ",
+    cfg_autostart_title: "Запуск вместе с Windows",
+    cfg_autostart_desc: "Автоматически запускать сборщик в фоне при старте системы (без открытия консоли)",
+    cfg_tray_title: "Сворачивать в системный трей",
+    cfg_tray_desc: "При нажатии на крестик [X] окно закрывается, а приложение продолжает тихо работать в трее",
+    cfg_minimized_title: "Запускать свёрнутым",
+    cfg_minimized_desc: "При автозапуске не открывать главное окно, а сразу прятать значок в трей",
+    cfg_group_daemon: "АВТОМАТИЗАЦИЯ И СБОР",
+    cfg_daemon_title: "Автоматический фоновый сбор",
+    cfg_daemon_desc: "Фоновый планировщик проверяет магазин при старте ПК, выходе из сна и по расписанию",
+    cfg_lbl_interval: "Интервал периодической проверки",
+    cfg_desc_interval: "Периодичность фоновой проверки магазина (в часах)",
     cfg_headless_title: "Скрытый режим браузера (Headless)",
-    cfg_headless_desc: "Браузер работает невидимо в памяти без всплывающих окон на экране",
+    cfg_headless_desc: "Браузер работает невидимо в памяти без всплывающих окон на рабочем столе",
     cfg_shot_title: "Скриншот при ошибке",
-    cfg_shot_desc: "Сохранять снимок экрана в папку logs/screenshots",
-    cfg_section_games: "Игровые профили",
-    cfg_notify_title: "Оповещения в мессенджеры",
+    cfg_shot_desc: "Сохранять снимок экрана в папку logs/screenshots в случае сбоя",
+    cfg_section_games: "ИГРОВОЙ ПРОФИЛЬ",
+    cfg_notify_title: "ОПОВЕЩЕНИЯ В МЕССЕНДЖЕРЫ",
     btn_test_notify: "Отправить тест",
     console_title: "Живая консоль (Live Logs)",
-    console_sub: "Мониторинг событий, статусов сбора и системных сообщений в реальном времени",
+    console_sub: "События, статусы сбора и системные сообщения в реальном времени",
     btn_copy_logs: "Скопировать логи",
     btn_clear_logs: "Очистить",
-    status_ready: "СИСТЕМА ГОТОВА",
+    status_ready: "ГОТОВО К РАБОТЕ",
     status_collecting: "ИДЕТ СБОР НАГРАД...",
-    status_auth_waiting: "ОЖИДАНИЕ ВХОДА В БРАУЗЕРЕ...",
-    status_authed: "Авторизован ✅",
-    status_need_auth: "Требуется вход ⚠️",
-    daemon_on: "ДЕМОН: ВКЛ",
-    daemon_off: "ДЕМОН: ВЫКЛ",
+    daemon_on: "АВТОСБОР: ВКЛ",
+    daemon_off: "АВТОСБОР: ВЫКЛ",
     ready_to_claim: "Готово к сбору! 🎁",
     badge_claimed: "Собрано ✓",
-    badge_no_rewards: "Нет наград в магазине",
+    badge_no_rewards: "Нет наград",
     cooldown_word: "Откат: ",
     cooldown_prefix: "Доступно через: ",
     ph_dash_wr_id: "Введите ваш Pilot ID",
     ph_cfg_wr_id: "Введите Pilot ID"
   },
   en: {
-    nav_label: "Navigation",
+    nav_label: "NAVIGATION",
     tab_dashboard: "Dashboard",
-    tab_history: "Reward History",
     tab_promocodes: "Promo Codes",
-    tab_auth: "Authentication",
+    tab_history: "Reward History",
     tab_settings: "Settings",
     tab_console: "Live Console",
-    session_title: "MY.GAMES Profile",
+    tray_active: "Tray Active",
     dash_title: "Rewards Control Center",
-    dash_sub: "Automated daily gifts and free bundle collector for game stores",
+    dash_sub: "Automated daily gifts and free items collector for War Robots shop",
     btn_visible: "Run with Window",
-    btn_claim_all: "CLAIM ALL REWARDS",
+    btn_claim_all: "CLAIM REWARDS",
     btn_claim_wr: "Claim",
-    lbl_game_id: "Player ID (Game ID)",
     lbl_platform: "Platform",
     lbl_recent_events: "Recent Events",
     btn_full_console: "Full Console →",
     hist_title: "Collected Rewards Log",
     hist_sub: "History of all claimed gifts and promotional items with direct image previews",
     btn_refresh: "Refresh",
-    btn_clear_history: "Clear History",
+    btn_clear_history: "Clear",
     col_date: "Date & Time",
     col_game: "Game",
     col_item: "Reward / Item",
     col_status: "Status",
     hist_empty_title: "No rewards collected yet",
-    hist_empty_desc: "Click 'Claim All Rewards' on the dashboard to populate your history log!",
+    hist_empty_desc: "Click 'Claim Rewards' on the dashboard to populate your history log!",
     promo_title: "Promo Code Redemption",
-    promo_sub: "Automated one-click promo code activator across games",
+    promo_sub: "Quick promo code activation for War Robots",
     promo_lbl_code: "Promo Code",
     promo_btn_submit: "Redeem Promo Code",
-    auth_title: "MY.GAMES Authentication",
-    auth_sub: "Secure login via standard browser window without sharing credentials",
-    btn_check_session: "Verify Session",
-    btn_logout: "Log Out Account",
-    auth_how_title: "How it works:",
-    auth_step_1: "Click the <b>'Open Login Window'</b> button below.",
-    auth_step_2: "In the browser window, log in to your account (VK ID, password, email, or Google).",
-    auth_step_3: "Once signed in, the window closes automatically or click 'I am logged in'.",
-    auth_step_4: "Sessions stay valid for months (Sliding Session) — no need to log in repeatedly!",
-    btn_open_login: "Open MY.GAMES Login Window",
-    btn_finish_login: "I am Logged In (Finish & Save)",
     cfg_title: "Preferences & Settings",
-    cfg_sub: "Configure options in GUI without editing configuration files manually",
+    cfg_sub: "Windows integration, system tray, scheduler automation and notifications",
     btn_save_cfg: "Save Settings",
-    cfg_section_app: "Application Settings",
-    cfg_daemon_title: "Scheduled Auto-Collection",
-    cfg_daemon_desc: "Periodically check and claim rewards in background without manual interaction",
-    cfg_lbl_interval: "Check Interval (hours)",
+    cfg_group_windows: "WINDOWS & SYSTEM TRAY INTEGRATION",
+    cfg_autostart_title: "Start with Windows",
+    cfg_autostart_desc: "Automatically launch the toolkit silently in the background on system boot",
+    cfg_tray_title: "Minimize to System Tray",
+    cfg_tray_desc: "Closing the window [X] keeps the toolkit running quietly in the system tray",
+    cfg_minimized_title: "Start Minimized in Tray",
+    cfg_minimized_desc: "Do not open the window on launch; keep it minimized in the tray",
+    cfg_group_daemon: "AUTOMATION & SCHEDULER",
+    cfg_daemon_title: "Scheduled Background Collector",
+    cfg_daemon_desc: "Background scheduler checks store on boot, sleep wake-up, and periodic intervals",
+    cfg_lbl_interval: "Check Interval",
+    cfg_desc_interval: "Frequency of background store checks (in hours)",
     cfg_headless_title: "Silent Browser Mode (Headless)",
     cfg_headless_desc: "Browser runs silently in memory without popping up windows on screen",
     cfg_shot_title: "Screenshot on Failure",
     cfg_shot_desc: "Save debug screenshot to logs/screenshots on error",
-    cfg_section_games: "Game Profiles",
-    cfg_notify_title: "Messenger Notifications",
+    cfg_section_games: "GAME PROFILES",
+    cfg_notify_title: "MESSENGER NOTIFICATIONS",
     btn_test_notify: "Send Test Message",
     console_title: "Live Console Logs",
     console_sub: "Real-time event monitoring, collection statuses, and system messages",
@@ -155,14 +142,11 @@ const TRANSLATIONS = {
     btn_clear_logs: "Clear",
     status_ready: "SYSTEM READY",
     status_collecting: "COLLECTING REWARDS...",
-    status_auth_waiting: "AWAITING BROWSER LOGIN...",
-    status_authed: "Authorized ✅",
-    status_need_auth: "Login Required ⚠️",
-    daemon_on: "DAEMON: ON",
-    daemon_off: "DAEMON: OFF",
+    daemon_on: "AUTO-COLLECT: ON",
+    daemon_off: "AUTO-COLLECT: OFF",
     ready_to_claim: "Ready to Claim! 🎁",
     badge_claimed: "Claimed ✓",
-    badge_no_rewards: "No gifts in store",
+    badge_no_rewards: "No gifts",
     cooldown_word: "Cooldown: ",
     cooldown_prefix: "Available in: ",
     ph_dash_wr_id: "Enter your Pilot ID",
@@ -198,24 +182,25 @@ document.getElementById("btn-toggle-lang")?.addEventListener("click", () => {
   localStorage.setItem("app_lang", currentLanguage);
   applyLanguage();
   updateCooldownDisplay();
-  showToast(currentLanguage === "ru" ? "Язык переключен на Русский" : "Language set to English", "info");
+  showToast(currentLanguage === "ru" ? "Язык интерфейса: Русский" : "Language set to English", "info");
 });
 
-// Toast helper
+// Toast notification helper
 function showToast(message, type = "info") {
   const container = document.getElementById("toast-container");
+  if (!container) return;
   const toast = document.createElement("div");
   toast.className = "toast";
-  if (type === "success") toast.style.borderLeftColor = "#10b981";
-  if (type === "error") toast.style.borderLeftColor = "#f43f5e";
+  if (type === "success") toast.style.borderLeftColor = "var(--accent-emerald)";
+  if (type === "error") toast.style.borderLeftColor = "var(--accent-rose)";
   toast.innerText = message;
   container.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = "0";
-    toast.style.transform = "translateX(100%)";
-    toast.style.transition = "all 0.3s ease";
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
+    toast.style.transform = "translateY(8px)";
+    toast.style.transition = "all 0.2s ease";
+    setTimeout(() => toast.remove(), 250);
+  }, 3500);
 }
 
 // Navigation Tabs
@@ -240,7 +225,7 @@ document.getElementById("btn-to-console")?.addEventListener("click", () => {
 });
 
 // ==========================================================================
-//                           CONFIG & SYNC
+//                           CONFIG & SYSTEM SETTINGS
 // ==========================================================================
 
 async function loadConfig() {
@@ -249,13 +234,13 @@ async function loadConfig() {
     if (!res.ok) throw new Error("Could not load configuration");
     currentConfig = await res.json();
 
-    // Populate Settings Fields
+    // App core fields
     document.getElementById("cfg-interval").value = currentConfig.app?.check_interval_hours || 12;
     document.getElementById("cfg-headless").checked = currentConfig.app?.headless ?? true;
     document.getElementById("cfg-screenshot").checked = currentConfig.app?.screenshot_on_error ?? true;
     document.getElementById("cfg-daemon-enabled").checked = currentConfig.app?.daemon_enabled ?? false;
 
-    // War Robots
+    // War Robots fields
     const wr = currentConfig.games?.war_robots || {};
     const wrId = wr.player_id || "";
     const wrPlat = (wr.platform || "crossplay").toLowerCase();
@@ -274,6 +259,15 @@ async function loadConfig() {
     const dc = currentConfig.notifications?.discord || {};
     document.getElementById("cfg-dc-enabled").checked = dc.enabled ?? false;
     document.getElementById("cfg-dc-webhook").value = dc.webhook_url || "";
+
+    // System Settings (Autostart & Tray)
+    const sysRes = await fetch("/api/system/settings");
+    if (sysRes.ok) {
+      const sysData = await sysRes.json();
+      document.getElementById("cfg-autostart").checked = sysData.autostart_windows ?? false;
+      document.getElementById("cfg-minimize-to-tray").checked = sysData.minimize_to_tray ?? true;
+      document.getElementById("cfg-start-minimized").checked = sysData.start_minimized ?? false;
+    }
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -308,12 +302,24 @@ async function saveFullConfig() {
   };
 
   try {
-    const res = await fetch("/api/config", {
+    const res1 = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(currentConfig)
     });
-    if (!res.ok) throw new Error("Failed to save settings");
+    if (!res1.ok) throw new Error("Failed to save config settings");
+
+    const sysPayload = {
+      autostart_windows: document.getElementById("cfg-autostart").checked,
+      minimize_to_tray: document.getElementById("cfg-minimize-to-tray").checked,
+      start_minimized: document.getElementById("cfg-start-minimized").checked
+    };
+    await fetch("/api/system/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sysPayload)
+    });
+
     showToast(currentLanguage === "ru" ? "Настройки успешно сохранены!" : "Settings saved successfully!", "success");
   } catch (err) {
     showToast(err.message, "error");
@@ -326,9 +332,17 @@ document.getElementById("btn-save-settings")?.addEventListener("click", saveFull
 ["dash-wr-player-id", "dash-wr-platform", "dash-wr-enabled"].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
-    el.addEventListener("change", saveFullConfig);
+    el.addEventListener("change", () => {
+      if (id === "dash-wr-player-id") {
+        document.getElementById("cfg-wr-player-id").value = el.value;
+      }
+      saveFullConfig();
+    });
     if (el.tagName === "INPUT" && el.type === "text") {
-      el.addEventListener("blur", saveFullConfig);
+      el.addEventListener("blur", () => {
+        document.getElementById("cfg-wr-player-id").value = el.value;
+        saveFullConfig();
+      });
     }
   }
 });
@@ -359,9 +373,9 @@ async function loadHistory() {
 
       tr.innerHTML = `
         <td style="color: var(--text-muted); font-size: 12px;">${escapeHtml(item.timestamp || "")}</td>
-        <td><b style="color: #38bdf8;">${escapeHtml(item.game)}</b></td>
+        <td><b style="color: var(--accent-cyan);">${escapeHtml(item.game)}</b></td>
         <td>
-          <img src="${escapeHtml(imgUrl)}" class="history-thumb" alt="Item" onerror="this.src='https://market.my.games/favicon.ico'">
+          <img src="${escapeHtml(imgUrl)}" class="history-thumb" alt="Item" onerror="this.src='/static/assets/icon.png'">
           <span>${escapeHtml(item.item_name || "Reward Item")}</span>
         </td>
         <td>
@@ -417,18 +431,19 @@ function formatTime(seconds, short = false) {
 
 function updateCooldownDisplay() {
   const wrBadge = document.getElementById("wr-cooldown-badge");
-
   if (wrBadge) {
-    if (wrCooldownData?.status === "no_rewards") {
-      wrBadge.innerText = t("badge_no_rewards");
-      wrBadge.className = "cooldown-badge no-rewards";
-    } else if (wrCooldownSec <= 0 || !wrCooldownData?.claimed) {
+    if (wrCooldownSec <= 0 || !wrCooldownData?.claimed) {
       wrBadge.innerText = t("ready_to_claim");
       wrBadge.className = "cooldown-badge ready";
     } else {
       const cdStr = formatTime(wrCooldownSec, true);
-      wrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
-      wrBadge.className = "cooldown-badge claimed";
+      if (wrCooldownData?.status === "no_rewards") {
+        wrBadge.innerText = `${t("badge_no_rewards")} (${t("cooldown_word")}${cdStr})`;
+        wrBadge.className = "cooldown-badge no-rewards";
+      } else {
+        wrBadge.innerText = `${t("badge_claimed")} (${t("cooldown_word")}${cdStr})`;
+        wrBadge.className = "cooldown-badge claimed";
+      }
     }
   }
 }
@@ -453,7 +468,7 @@ setInterval(() => {
 }, 1000);
 
 // ==========================================================================
-//                           ACTIONS: COLLECT & LOGIN
+//                           ACTIONS: REWARD COLLECTION
 // ==========================================================================
 
 async function triggerCollect(target = "all", forceHead = false) {
@@ -482,70 +497,6 @@ async function triggerCollect(target = "all", forceHead = false) {
 document.getElementById("btn-collect-all")?.addEventListener("click", () => triggerCollect("all", false));
 document.getElementById("btn-collect-head")?.addEventListener("click", () => triggerCollect("all", true));
 document.getElementById("btn-collect-wr")?.addEventListener("click", () => triggerCollect("war_robots", false));
-
-// Action: Login
-document.getElementById("btn-launch-login")?.addEventListener("click", async () => {
-  try {
-    const res = await fetch("/api/action/login?target=all", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Error");
-    showToast(currentLanguage === "ru" ? "Браузер запускается с формой входа MY.GAMES!" : "Browser launching with MY.GAMES login form!", "info");
-    document.getElementById("btn-top-finish-login").style.display = "inline-flex";
-    document.getElementById("btn-finish-login").style.display = "block";
-    document.getElementById("btn-launch-login").style.display = "none";
-    document.querySelector('.nav-item[data-tab="console"]')?.click();
-  } catch (err) {
-    showToast(err.message, "error");
-  }
-});
-
-async function finishLogin() {
-  try {
-    const res = await fetch("/api/action/login/finish", { method: "POST" });
-    const data = await res.json();
-    showToast(currentLanguage === "ru" ? "Сессия сохранена! Авторизация завершена." : "Session saved! Authentication finished.", "success");
-    document.getElementById("btn-top-finish-login").style.display = "none";
-    document.getElementById("btn-finish-login").style.display = "none";
-    document.getElementById("btn-launch-login").style.display = "block";
-  } catch (err) {
-    showToast(err.message, "error");
-  }
-}
-
-document.getElementById("btn-top-finish-login")?.addEventListener("click", finishLogin);
-document.getElementById("btn-finish-login")?.addEventListener("click", finishLogin);
-
-// Action: Check & Logout Session
-document.getElementById("btn-check-session")?.addEventListener("click", async () => {
-  const btn = document.getElementById("btn-check-session");
-  btn.style.opacity = "0.5";
-  btn.innerText = "⏳ Checking...";
-  try {
-    const res = await fetch("/api/session/check");
-    const data = await res.json();
-    if (data.authenticated) {
-      showToast(currentLanguage === "ru" ? "Сессия подтверждена: Аккаунт активен! ✅" : "Session verified: Account is active! ✅", "success");
-    } else {
-      showToast(currentLanguage === "ru" ? `Сессия недействительна: ${data.reason}` : `Session invalid: ${data.reason}`, "error");
-    }
-  } catch (err) {
-    showToast(err.message, "error");
-  } finally {
-    btn.style.opacity = "1";
-    btn.innerHTML = `<span>🔄</span> <span>${t("btn_check_session")}</span>`;
-  }
-});
-
-document.getElementById("btn-logout-session")?.addEventListener("click", async () => {
-  if (!confirm(currentLanguage === "ru" ? "Вы уверены, что хотите выйти из аккаунта и удалить сохранённую сессию?" : "Are you sure you want to log out and clear the saved session?")) return;
-  try {
-    const res = await fetch("/api/session/logout", { method: "POST" });
-    const data = await res.json();
-    showToast(data.message, "info");
-  } catch (err) {
-    showToast(err.message, "error");
-  }
-});
 
 // Action: Test Notification
 document.getElementById("btn-test-notification")?.addEventListener("click", async () => {
@@ -579,7 +530,7 @@ document.getElementById("daemon-status-pill")?.addEventListener("click", async (
     const res = await fetch("/api/daemon/toggle", { method: "POST" });
     const data = await res.json();
     document.getElementById("cfg-daemon-enabled").checked = data.daemon_enabled;
-    showToast(data.daemon_enabled ? (currentLanguage === "ru" ? "Демон включен!" : "Daemon enabled!") : (currentLanguage === "ru" ? "Демон выключен" : "Daemon disabled"), "info");
+    showToast(data.daemon_enabled ? (currentLanguage === "ru" ? "Автосбор включен!" : "Auto-collect enabled!") : (currentLanguage === "ru" ? "Автосбор выключен" : "Auto-collect disabled"), "info");
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -606,12 +557,10 @@ async function pollStatusAndLogs() {
       
       const statusPill = document.getElementById("system-status");
       const statusText = document.getElementById("status-text");
-      const sidebarAuth = document.getElementById("sidebar-auth-status");
-      const authIcon = document.getElementById("auth-status-icon");
-      const authTitle = document.getElementById("auth-status-title");
-      const authDesc = document.getElementById("auth-status-desc");
       const daemonPill = document.getElementById("daemon-status-pill");
+      const daemonDot = daemonPill?.querySelector(".status-dot");
       const daemonText = document.getElementById("daemon-status-text");
+      const sidebarDaemon = document.getElementById("sidebar-daemon-status");
 
       // Auto-refresh badges & history when a background run finishes
       if (wasRunning && !status.is_running) {
@@ -625,13 +574,7 @@ async function pollStatusAndLogs() {
         statusPill.style.background = "rgba(245, 158, 11, 0.15)";
         statusPill.style.borderColor = "rgba(245, 158, 11, 0.4)";
         statusPill.style.color = "#fde047";
-        if ((status.current_action || "").toLowerCase().includes("auth")) {
-          statusText.innerText = t("status_auth_waiting");
-        } else if ((status.current_action || "").toLowerCase().includes("collect")) {
-          statusText.innerText = t("status_collecting");
-        } else {
-          statusText.innerText = status.current_action.toUpperCase();
-        }
+        statusText.innerText = t("status_collecting");
       } else {
         const summary = currentLanguage === "ru" ? status.last_run_summary_ru : status.last_run_summary_en;
         if (summary) {
@@ -646,53 +589,31 @@ async function pollStatusAndLogs() {
             statusPill.style.color = "#6ee7b7";
           }
         } else {
-          statusPill.style.background = "rgba(16, 185, 129, 0.1)";
-          statusPill.style.borderColor = "rgba(16, 185, 129, 0.25)";
-          statusPill.style.color = "#6ee7b7";
+          statusPill.style.background = "rgba(255, 255, 255, 0.05)";
+          statusPill.style.borderColor = "var(--border-subtle)";
+          statusPill.style.color = "var(--text-secondary)";
           statusText.innerText = t("status_ready");
         }
       }
 
       // Daemon status
       if (status.daemon_enabled) {
-        daemonPill.className = "daemon-pill active";
+        if (daemonDot) daemonDot.className = "status-dot dot-daemon active";
         if (status.next_daemon_run_in > 0) {
           const totM = Math.floor(status.next_daemon_run_in / 60);
           const h = Math.floor(totM / 60);
           const m = totM % 60;
           const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
           daemonText.innerText = `${t("daemon_on")} (${timeStr})`;
+          if (sidebarDaemon) sidebarDaemon.innerText = `${currentLanguage === 'ru' ? 'Автосбор: Вкл' : 'Auto-collect: On'} (${timeStr})`;
         } else {
           daemonText.innerText = t("daemon_on");
+          if (sidebarDaemon) sidebarDaemon.innerText = currentLanguage === 'ru' ? 'Автосбор: Вкл' : 'Auto-collect: On';
         }
       } else {
-        daemonPill.className = "daemon-pill";
+        if (daemonDot) daemonDot.className = "status-dot dot-daemon";
         daemonText.innerText = t("daemon_off");
-      }
-
-      const isLoggingIn = status.is_running && (status.current_action || "").toLowerCase().includes("auth");
-      const topBtnFinish = document.getElementById("btn-top-finish-login");
-      const btnFinish = document.getElementById("btn-finish-login");
-      const btnLaunch = document.getElementById("btn-launch-login");
-
-      if (topBtnFinish) topBtnFinish.style.display = isLoggingIn ? "inline-flex" : "none";
-      if (btnFinish) btnFinish.style.display = isLoggingIn ? "block" : "none";
-      if (btnLaunch) btnLaunch.style.display = isLoggingIn ? "none" : "block";
-
-      if (status.has_session) {
-        sidebarAuth.innerText = t("status_authed");
-        sidebarAuth.style.color = "#10b981";
-        authIcon.innerText = "🔓";
-        authTitle.innerText = `${currentLanguage === 'ru' ? 'Статус: Аккаунт привязан' : 'Status: Account Linked'} ✅`;
-        authTitle.style.color = "#10b981";
-        authDesc.innerText = currentLanguage === 'ru' ? "Сессия активна. Коллектор может собирать награды в фоновом режиме." : "Session active. Collector can claim rewards in background.";
-      } else {
-        sidebarAuth.innerText = t("status_need_auth");
-        sidebarAuth.style.color = "#f59e0b";
-        authIcon.innerText = "🔒";
-        authTitle.innerText = `${currentLanguage === 'ru' ? 'Статус: Требуется вход' : 'Status: Login Required'} ⚠️`;
-        authTitle.style.color = "#f59e0b";
-        authDesc.innerText = currentLanguage === 'ru' ? "Для получения наград необходимо один раз авторизоваться в магазине MY.GAMES." : "You must log in to MY.GAMES once to claim free rewards.";
+        if (sidebarDaemon) sidebarDaemon.innerText = currentLanguage === 'ru' ? 'Автосбор: Выкл' : 'Auto-collect: Off';
       }
     }
 
@@ -716,7 +637,7 @@ async function pollStatusAndLogs() {
         });
 
         const lastLog = lData.logs[lData.logs.length - 1];
-        miniLog.innerText = `[${lastLog.time}] ${lastLog.message}`;
+        if (miniLog) miniLog.innerText = `[${lastLog.time}] ${lastLog.message}`;
 
         terminal.scrollTop = terminal.scrollHeight;
         lastLogIndex += lData.logs.length;
