@@ -784,11 +784,26 @@ def api_save_system_settings(settings: SystemSettingsModel):
 def api_get_status():
     cfg = load_config()
     daemon_enabled = cfg.get("app", {}).get("daemon_enabled", False)
-    interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
-    last_run = STATE.get("last_daemon_run", 0)
+    
+    # Calculate next collection time based on actual reward cooldown
+    cooldowns = api_get_cooldowns()
+    wr_cd = cooldowns.get("war_robots", {})
+    wr_sec_left = wr_cd.get("seconds_left", 0)
 
     now = time.time()
-    next_run_in = max(0, int(interval_sec - (now - last_run))) if (daemon_enabled and last_run > 0) else 0
+    last_run = STATE.get("last_daemon_run", 0)
+
+    if daemon_enabled:
+        if wr_sec_left > 0:
+            next_run_in = wr_sec_left
+        elif wr_cd.get("claimed", False):
+            interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
+            next_run_in = max(0, int(interval_sec - (now - last_run))) if last_run > 0 else 0
+        else:
+            # Overdue / ready right now!
+            next_run_in = 0
+    else:
+        next_run_in = 0
 
     return {
         "is_running": STATE["is_running"],
@@ -850,7 +865,7 @@ def api_get_cooldowns():
     # 0. Check live countdown timer from the official game shop
     exact_sec = wr_check.get("exact_seconds_left")
     unix_ts = wr_check.get("unix_timestamp", 0)
-    if exact_sec and unix_ts > 0:
+    if exact_sec is not None and unix_ts > 0:
         elapsed = int(time.time() - unix_ts)
         remaining = max(0, int(exact_sec - elapsed))
         if remaining > 0:
@@ -859,6 +874,17 @@ def api_get_cooldowns():
                     "status": "already_claimed",
                     "claimed": True,
                     "seconds_left": remaining,
+                    "title": "Daily Free Gift (Data Pad / Resources)",
+                    "image_url": "https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png"
+                }
+            }
+        else:
+            # Exact cooldown from official store has elapsed -> ready to collect now!
+            return {
+                "war_robots": {
+                    "status": "ready",
+                    "claimed": False,
+                    "seconds_left": 0,
                     "title": "Daily Free Gift (Data Pad / Resources)",
                     "image_url": "https://market.my.games/s3/media/2026/10/22/9b21a096c25aaa56c9bdfad9106e7c86.png"
                 }
@@ -1051,9 +1077,12 @@ def check_is_overdue(cfg: Dict[str, Any]) -> bool:
         cd = api_get_cooldowns()
         games_cfg = cfg.get("games", {})
 
-        # War Robots check: overdue if enabled and not claimed today
+        # War Robots check: overdue if enabled and not claimed today or cooldown reached 0
         if games_cfg.get("war_robots", {}).get("enabled", True):
-            if not cd.get("war_robots", {}).get("claimed", False):
+            wr = cd.get("war_robots", {})
+            if not wr.get("claimed", False):
+                return True
+            if wr.get("seconds_left", 0) <= 0:
                 return True
 
         return False
@@ -1063,7 +1092,7 @@ def check_is_overdue(cfg: Dict[str, Any]) -> bool:
 
 def daemon_worker():
     """Background scheduler running with Below Normal CPU priority.
-    Triggers after system reboot/start, or on PC wake-up IF rewards are overdue.
+    Triggers after system reboot/start, sleep wake-up, or when reward cooldown expires.
     """
     set_low_process_priority()
     last_heartbeat = time.time()
@@ -1083,7 +1112,7 @@ def daemon_worker():
 
     while True:
         try:
-            time.sleep(60)  # Check once per minute with near-zero CPU impact
+            time.sleep(30)  # Check every 30 seconds with near-zero CPU impact
             now = time.time()
             gap = now - last_heartbeat
             last_heartbeat = now
@@ -1091,6 +1120,11 @@ def daemon_worker():
             cfg = load_config()
             daemon_enabled = cfg.get("app", {}).get("daemon_enabled", False)
             if not daemon_enabled or STATE["is_running"]:
+                continue
+
+            last_run = STATE.get("last_daemon_run", 0)
+            # Minimum 5-minute debounce between automatic collection attempts to prevent retry spam
+            if now - last_run < 300:
                 continue
 
             # Detect wake-up from sleep or hibernate (gap > 3 minutes)
@@ -1103,15 +1137,16 @@ def daemon_worker():
                 else:
                     add_log("DEBUG", "[Daemon] Компьютер вышел из сна: подарки уже собраны. Сбор не требуется.")
             else:
-                # Periodic interval check: only collect if overdue!
-                interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
-                last_run = STATE.get("last_daemon_run", 0)
-                if (now - last_run >= interval_sec):
-                    if check_is_overdue(cfg):
-                        add_log("INFO", "[Daemon] Плановый интервал: подошел срок сбора наград (overdue)...")
+                # Check if rewards are overdue / cooldown expired
+                if check_is_overdue(cfg):
+                    add_log("INFO", "[Daemon] Таймер отката наград истек: подарки готовы к сбору. Автоматический запуск...")
+                    _run_collection_task(target="all", force_head=False, trigger_source="daemon_cooldown_expired")
+                else:
+                    # Fallback periodic check interval (e.g. 12 hours) if no active cooldown
+                    interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
+                    if (now - last_run >= interval_sec):
+                        add_log("INFO", "[Daemon] Плановый интервал: плановая проверка наград...")
                         _run_collection_task(target="all", force_head=False, trigger_source="daemon_interval")
-                    else:
-                        STATE["last_daemon_run"] = now
 
         except Exception as e:
             add_log("DEBUG", f"Daemon scheduler loop exception: {e}")

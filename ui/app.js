@@ -9,6 +9,8 @@ let currentLanguage = localStorage.getItem("app_lang") || "ru";
 
 let wrCooldownData = null;
 let wrCooldownSec = 0;
+let daemonNextRunSec = 0;
+let isDaemonEnabled = false;
 let wasRunning = false;
 
 // ==========================================================================
@@ -467,6 +469,33 @@ function updateCooldownDisplay() {
   }
 }
 
+function updateDaemonDisplay() {
+  const daemonPill = document.getElementById("daemon-status-pill");
+  const daemonDot = daemonPill?.querySelector(".status-dot");
+  const daemonText = document.getElementById("daemon-status-text");
+  const sidebarDaemon = document.getElementById("sidebar-daemon-status");
+
+  if (!daemonText) return;
+
+  if (isDaemonEnabled) {
+    if (daemonDot) daemonDot.className = "status-dot dot-daemon active";
+    // Synchronize directly with the reward cooldown so top and middle are 100% identical!
+    const effectiveSec = (wrCooldownSec > 0) ? wrCooldownSec : daemonNextRunSec;
+    if (effectiveSec > 0) {
+      const timeStr = formatTime(effectiveSec, true);
+      daemonText.innerText = `${t("daemon_on")} (${timeStr})`;
+      if (sidebarDaemon) sidebarDaemon.innerText = `${currentLanguage === 'ru' ? 'Автосбор: Вкл' : 'Auto-collect: On'} (${timeStr})`;
+    } else {
+      daemonText.innerText = t("daemon_on");
+      if (sidebarDaemon) sidebarDaemon.innerText = currentLanguage === 'ru' ? 'Автосбор: Вкл' : 'Auto-collect: On';
+    }
+  } else {
+    if (daemonDot) daemonDot.className = "status-dot dot-daemon";
+    daemonText.innerText = t("daemon_off");
+    if (sidebarDaemon) sidebarDaemon.innerText = currentLanguage === 'ru' ? 'Автосбор: Выкл' : 'Auto-collect: Off';
+  }
+}
+
 async function fetchCooldowns() {
   try {
     const res = await fetch("/api/rewards/cooldowns");
@@ -475,6 +504,7 @@ async function fetchCooldowns() {
       wrCooldownData = data.war_robots || null;
       wrCooldownSec = data.war_robots?.seconds_left || 0;
       updateCooldownDisplay();
+      updateDaemonDisplay();
     }
   } catch (e) {
     console.debug("Cooldown fetch error:", e);
@@ -483,7 +513,9 @@ async function fetchCooldowns() {
 
 setInterval(() => {
   if (wrCooldownSec > 0) wrCooldownSec--;
+  if (daemonNextRunSec > 0) daemonNextRunSec--;
   updateCooldownDisplay();
+  updateDaemonDisplay();
 }, 1000);
 
 // ==========================================================================
@@ -548,8 +580,10 @@ document.getElementById("daemon-status-pill")?.addEventListener("click", async (
   try {
     const res = await fetch("/api/daemon/toggle", { method: "POST" });
     const data = await res.json();
-    document.getElementById("cfg-daemon-enabled").checked = data.daemon_enabled;
-    showToast(data.daemon_enabled ? (currentLanguage === "ru" ? "Автосбор включен!" : "Auto-collect enabled!") : (currentLanguage === "ru" ? "Автосбор выключен" : "Auto-collect disabled"), "info");
+    isDaemonEnabled = !!data.daemon_enabled;
+    document.getElementById("cfg-daemon-enabled").checked = isDaemonEnabled;
+    updateDaemonDisplay();
+    showToast(isDaemonEnabled ? (currentLanguage === "ru" ? "Автосбор включен!" : "Auto-collect enabled!") : (currentLanguage === "ru" ? "Автосбор выключен" : "Auto-collect disabled"), "info");
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -557,7 +591,10 @@ document.getElementById("daemon-status-pill")?.addEventListener("click", async (
 
 document.getElementById("cfg-daemon-enabled")?.addEventListener("change", async () => {
   try {
-    await fetch("/api/daemon/toggle", { method: "POST" });
+    const res = await fetch("/api/daemon/toggle", { method: "POST" });
+    const data = await res.json();
+    isDaemonEnabled = !!data.daemon_enabled;
+    updateDaemonDisplay();
   } catch (err) {
     showToast(err.message, "error");
   }
@@ -576,10 +613,6 @@ async function pollStatusAndLogs() {
       
       const statusPill = document.getElementById("system-status");
       const statusText = document.getElementById("status-text");
-      const daemonPill = document.getElementById("daemon-status-pill");
-      const daemonDot = daemonPill?.querySelector(".status-dot");
-      const daemonText = document.getElementById("daemon-status-text");
-      const sidebarDaemon = document.getElementById("sidebar-daemon-status");
 
       // Auto-refresh badges & history when a background run finishes
       if (wasRunning && !status.is_running) {
@@ -616,24 +649,9 @@ async function pollStatusAndLogs() {
       }
 
       // Daemon status
-      if (status.daemon_enabled) {
-        if (daemonDot) daemonDot.className = "status-dot dot-daemon active";
-        if (status.next_daemon_run_in > 0) {
-          const totM = Math.floor(status.next_daemon_run_in / 60);
-          const h = Math.floor(totM / 60);
-          const m = totM % 60;
-          const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
-          daemonText.innerText = `${t("daemon_on")} (${timeStr})`;
-          if (sidebarDaemon) sidebarDaemon.innerText = `${currentLanguage === 'ru' ? 'Автосбор: Вкл' : 'Auto-collect: On'} (${timeStr})`;
-        } else {
-          daemonText.innerText = t("daemon_on");
-          if (sidebarDaemon) sidebarDaemon.innerText = currentLanguage === 'ru' ? 'Автосбор: Вкл' : 'Auto-collect: On';
-        }
-      } else {
-        if (daemonDot) daemonDot.className = "status-dot dot-daemon";
-        daemonText.innerText = t("daemon_off");
-        if (sidebarDaemon) sidebarDaemon.innerText = currentLanguage === 'ru' ? 'Автосбор: Выкл' : 'Auto-collect: Off';
-      }
+      isDaemonEnabled = !!status.daemon_enabled;
+      daemonNextRunSec = status.next_daemon_run_in || 0;
+      updateDaemonDisplay();
     }
 
     // 2. Logs
