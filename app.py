@@ -64,7 +64,7 @@ if sys.platform == "win32":
 
 
 def set_low_process_priority():
-    """Set process priority to BELOW_NORMAL_PRIORITY_CLASS on Windows so games/apps have full priority."""
+    """Set process priority to BELOW_NORMAL_PRIORITY_CLASS on Windows so games/apps (e.g. osu!) have full priority."""
     if sys.platform == "win32":
         try:
             import ctypes
@@ -76,6 +76,8 @@ def set_low_process_priority():
                 k32.CloseHandle(handle)
         except Exception:
             pass
+
+set_low_process_priority()
 
 
 # =====================================================================
@@ -1090,9 +1092,12 @@ def check_is_overdue(cfg: Dict[str, Any]) -> bool:
         add_log("DEBUG", f"Error checking overdue state: {e}")
         return False
 
+COOLDOWN_SAFETY_MARGIN_SEC = 5  # 5-second buffer after cooldown ends to guarantee store server reset
+
 def daemon_worker():
     """Background scheduler running with Below Normal CPU priority.
-    Triggers after system reboot/start, sleep wake-up, or when reward cooldown expires.
+    Trusts the game website timer completely. Zero network polling or browser launches
+    during cooldown. Collects rewards exactly when the cooldown timer expires (+5s buffer).
     """
     set_low_process_priority()
     last_heartbeat = time.time()
@@ -1103,16 +1108,24 @@ def daemon_worker():
         cfg = load_config()
         if cfg.get("app", {}).get("daemon_enabled", False):
             if check_is_overdue(cfg):
-                add_log("INFO", "[Daemon] Запуск после старта: найдены несобранные подарки (overdue). Сбор...")
+                add_log("INFO", "[Daemon] Старт приложения: таймер наград уже истек. Запуск сбора...")
                 _run_collection_task(target="all", force_head=False, trigger_source="daemon_startup")
             else:
-                add_log("INFO", "[Daemon] Запуск после старта: все подарки за текущий период уже собраны. Ожидание.")
+                cd = api_get_cooldowns()
+                sec_left = cd.get("war_robots", {}).get("seconds_left", 0)
+                h = sec_left // 3600
+                m = (sec_left % 3600) // 60
+                s = sec_left % 60
+                time_str = f"{h}h {m}m {s}s" if h > 0 else f"{m}m {s}s"
+                add_log("INFO", f"[Daemon] Старт приложения: награды на откате (еще {time_str}). Фоновое ожидание без лишних проверок.")
     except Exception as e:
         add_log("DEBUG", f"Daemon startup check exception: {e}")
 
     while True:
         try:
-            time.sleep(30)  # Check every 30 seconds with near-zero CPU impact
+            # Low-overhead sleep: 15-second slices to gracefully handle PC sleep/wake and shutdown
+            # ZERO network requests, ZERO browser calls during this sleep!
+            time.sleep(15)
             now = time.time()
             gap = now - last_heartbeat
             last_heartbeat = now
@@ -1123,30 +1136,42 @@ def daemon_worker():
                 continue
 
             last_run = STATE.get("last_daemon_run", 0)
-            # Minimum 5-minute debounce between automatic collection attempts to prevent retry spam
+            # Minimum 5-minute debounce between automatic collection attempts to prevent retry spam on errors
             if now - last_run < 300:
                 continue
 
             # Detect wake-up from sleep or hibernate (gap > 3 minutes)
             is_wake_up = gap > 180
 
-            if is_wake_up:
+            # Check website cooldown timestamp
+            checks = load_last_checks()
+            wr_check = checks.get("War Robots", {})
+            exact_sec = wr_check.get("exact_seconds_left")
+            unix_ts = wr_check.get("unix_timestamp", 0)
+
+            should_collect = False
+            trigger_reason = ""
+
+            if exact_sec is not None and unix_ts > 0:
+                # Trust website data! Target time is unix_ts + exact_sec + 5s buffer
+                target_time = unix_ts + exact_sec + COOLDOWN_SAFETY_MARGIN_SEC
+                if now >= target_time:
+                    should_collect = True
+                    trigger_reason = "daemon_cooldown_expired"
+            elif is_wake_up:
                 if check_is_overdue(cfg):
-                    add_log("INFO", "[Daemon] Компьютер вышел из сна: найдены доступные награды (overdue). Запуск...")
-                    _run_collection_task(target="all", force_head=False, trigger_source="daemon_wakeup")
-                else:
-                    add_log("DEBUG", "[Daemon] Компьютер вышел из сна: подарки уже собраны. Сбор не требуется.")
+                    should_collect = True
+                    trigger_reason = "daemon_wakeup"
             else:
-                # Check if rewards are overdue / cooldown expired
-                if check_is_overdue(cfg):
-                    add_log("INFO", "[Daemon] Таймер отката наград истек: подарки готовы к сбору. Автоматический запуск...")
-                    _run_collection_task(target="all", force_head=False, trigger_source="daemon_cooldown_expired")
-                else:
-                    # Fallback periodic check interval (e.g. 12 hours) if no active cooldown
-                    interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
-                    if (now - last_run >= interval_sec):
-                        add_log("INFO", "[Daemon] Плановый интервал: плановая проверка наград...")
-                        _run_collection_task(target="all", force_head=False, trigger_source="daemon_interval")
+                # Fallback: interval check if no exact timer was available from shop
+                interval_sec = max(1, int(cfg.get("app", {}).get("check_interval_hours", 12))) * 3600
+                if (now - last_run >= interval_sec) and check_is_overdue(cfg):
+                    should_collect = True
+                    trigger_reason = "daemon_interval"
+
+            if should_collect:
+                add_log("INFO", f"[Daemon] Таймер отката наград истек (+{COOLDOWN_SAFETY_MARGIN_SEC}с запас для надежности). Запуск сбора...")
+                _run_collection_task(target="all", force_head=False, trigger_source=trigger_reason)
 
         except Exception as e:
             add_log("DEBUG", f"Daemon scheduler loop exception: {e}")

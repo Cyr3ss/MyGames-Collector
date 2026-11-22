@@ -685,7 +685,9 @@ async function pollStatusAndLogs() {
   }
 
   if (isPolling) {
-    setTimeout(pollStatusAndLogs, 1500);
+    // When collecting, poll fast (1s) to stream logs. When idle, poll every 5s to avoid any CPU/network spikes while gaming (osu!)
+    const delay = wasRunning ? 1000 : 5000;
+    setTimeout(pollStatusAndLogs, delay);
   }
 }
 
