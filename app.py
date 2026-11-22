@@ -379,34 +379,23 @@ class BrowserManager:
     def __init__(self, headless: bool = True, session_name: str = "mygames_main"):
         self.headless = headless
         self.session_name = session_name
-        self.profile_dir = SESSIONS_DIR / session_name
-        self.profile_dir.mkdir(parents=True, exist_ok=True)
+        self.state_file = SESSIONS_DIR / f"{session_name}_state.json"
         self._playwright = None
+        self.browser = None
         self.context: Optional[BrowserContext] = None
 
     def __enter__(self):
-        self.start()
-        return self
+        try:
+            self.start()
+            return self
+        except Exception:
+            self.close()
+            raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def clean_stale_locks(self):
-        """Cleans up browser singleton locks left behind by interrupted or crashed instances."""
-        lock_files = ["SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile"]
-        for fname in lock_files:
-            target = self.profile_dir / fname
-            if target.exists():
-                try:
-                    if target.is_file() or target.is_symlink():
-                        target.unlink(missing_ok=True)
-                    elif target.is_dir():
-                        shutil.rmtree(target, ignore_errors=True)
-                except Exception:
-                    pass
-
     def start(self) -> BrowserContext:
-        self.clean_stale_locks()
         self._playwright = sync_playwright().start()
 
         args = [
@@ -420,19 +409,36 @@ class BrowserManager:
         ]
 
         browser_exe = find_browser_for_app_window()
-        kwargs = {
-            "user_data_dir": str(self.profile_dir),
+        launch_kwargs = {
             "headless": self.headless,
-            "args": args,
+            "args": args
+        }
+        if browser_exe and os.path.exists(browser_exe):
+            launch_kwargs["executable_path"] = browser_exe
+
+        try:
+            self.browser = self._playwright.chromium.launch(**launch_kwargs)
+        except Exception as e:
+            # Fallback to Playwright's bundled Chromium if custom browser executable fails
+            if "executable_path" in launch_kwargs:
+                del launch_kwargs["executable_path"]
+                self.browser = self._playwright.chromium.launch(**launch_kwargs)
+            else:
+                raise e
+
+        context_kwargs = {
             "viewport": {"width": 1366, "height": 768},
             "locale": "ru-RU",
             "timezone_id": "Europe/Moscow",
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         }
-        if browser_exe and os.path.exists(browser_exe):
-            kwargs["executable_path"] = browser_exe
+        if self.state_file.exists():
+            try:
+                context_kwargs["storage_state"] = str(self.state_file)
+            except Exception:
+                pass
 
-        self.context = self._playwright.chromium.launch_persistent_context(**kwargs)
+        self.context = self.browser.new_context(**context_kwargs)
         self.context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
         return self.context
 
@@ -442,13 +448,34 @@ class BrowserManager:
         return self.context.pages[0] if self.context.pages else self.context.new_page()
 
     def close(self):
-        try:
-            if self.context:
+        # Save storage state (cookies, tokens) cleanly without ProcessSingleton lock files
+        if self.context:
+            try:
+                self.context.storage_state(path=str(self.state_file))
+            except Exception:
+                pass
+            try:
                 self.context.close()
-            if self._playwright:
+            except Exception:
+                pass
+            finally:
+                self.context = None
+
+        if self.browser:
+            try:
+                self.browser.close()
+            except Exception:
+                pass
+            finally:
+                self.browser = None
+
+        if self._playwright:
+            try:
                 self._playwright.stop()
-        except Exception:
-            pass
+            except Exception:
+                pass
+            finally:
+                self._playwright = None
 
 
 # =====================================================================
@@ -1060,11 +1087,25 @@ def _run_collection_task(target: str = "all", force_head: bool = False, trigger_
         STATE["is_running"] = False
         STATE["current_action"] = "idle"
 
+def run_collection_isolated(target: str = "all", force_head: bool = False, trigger_source: str = "manual") -> threading.Thread:
+    """Runs collection task in a fresh OS thread with clean asyncio state to prevent any loop conflicts."""
+    def runner():
+        try:
+            import asyncio
+            asyncio.set_event_loop(None)
+        except Exception:
+            pass
+        _run_collection_task(target=target, force_head=force_head, trigger_source=trigger_source)
+
+    t = threading.Thread(target=runner, daemon=True)
+    t.start()
+    return t
+
 @app.post("/api/action/collect")
 def api_action_collect(target: str = "all", force_head: bool = False):
     if STATE["is_running"]:
         return JSONResponse(status_code=400, content={"message": "Operation already in progress!"})
-    threading.Thread(target=_run_collection_task, args=(target, force_head, "gui"), daemon=True).start()
+    run_collection_isolated(target=target, force_head=force_head, trigger_source="gui")
     return {"status": "started", "message": "Reward collection started!"}
 
 @app.post("/api/action/test-notify")
@@ -1109,7 +1150,8 @@ def daemon_worker():
         if cfg.get("app", {}).get("daemon_enabled", False):
             if check_is_overdue(cfg):
                 add_log("INFO", "[Daemon] Старт приложения: таймер наград уже истек. Запуск сбора...")
-                _run_collection_task(target="all", force_head=False, trigger_source="daemon_startup")
+                t = run_collection_isolated(target="all", force_head=False, trigger_source="daemon_startup")
+                t.join()
             else:
                 cd = api_get_cooldowns()
                 sec_left = cd.get("war_robots", {}).get("seconds_left", 0)
@@ -1171,7 +1213,8 @@ def daemon_worker():
 
             if should_collect:
                 add_log("INFO", f"[Daemon] Таймер отката наград истек (+{COOLDOWN_SAFETY_MARGIN_SEC}с запас для надежности). Запуск сбора...")
-                _run_collection_task(target="all", force_head=False, trigger_source=trigger_reason)
+                t = run_collection_isolated(target="all", force_head=False, trigger_source=trigger_reason)
+                t.join()
 
         except Exception as e:
             add_log("DEBUG", f"Daemon scheduler loop exception: {e}")
@@ -1276,7 +1319,7 @@ class TrayManager:
                     pass
             return
         add_log("INFO", "[Tray] Запуск сбора наград по команде из трея...")
-        threading.Thread(target=_run_collection_task, args=("war_robots", False, "tray"), daemon=True).start()
+        run_collection_isolated(target="war_robots", force_head=False, trigger_source="tray")
         if self.icon:
             try:
                 self.icon.notify("Запущен фоновый сбор наград War Robots...", "WR Rewards Toolkit")
@@ -1365,6 +1408,26 @@ def start_gui(start_minimized: bool = False):
                         except Exception:
                             pass
 
+_SINGLE_INSTANCE_MUTEX = None
+
+def ensure_single_instance() -> bool:
+    """Ensures only one instance of the app runs at a time using a named Windows Mutex."""
+    global _SINGLE_INSTANCE_MUTEX
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            mutex_name = "Global\\WR_Rewards_Toolkit_Singleton_Mutex"
+            _SINGLE_INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, mutex_name)
+            last_error = kernel32.GetLastError()
+            ERROR_ALREADY_EXISTS = 183
+            if last_error == ERROR_ALREADY_EXISTS:
+                return False
+            return True
+        except Exception:
+            return True
+    return True
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="WR Rewards Toolkit")
@@ -1376,7 +1439,23 @@ def main():
 
     if args.run:
         _run_collection_task(args.run, force_head=args.head, trigger_source="cli")
-    elif args.daemon:
+        return
+
+    # Guard: prevent running multiple background instances at the same time
+    if not ensure_single_instance():
+        print("[!] Another instance of WR Rewards Toolkit is already running. Focusing existing window...")
+        for port in [18234, 18235, 18236]:
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=1.0) as resp:
+                    if resp.status == 200:
+                        if not args.minimized:
+                            webbrowser.open(f"http://127.0.0.1:{port}")
+                        sys.exit(0)
+            except Exception:
+                pass
+        sys.exit(0)
+
+    if args.daemon:
         run_daemon_service()
     else:
         start_gui(start_minimized=args.minimized)
