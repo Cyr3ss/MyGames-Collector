@@ -347,6 +347,25 @@ document.getElementById("btn-save-settings")?.addEventListener("click", saveFull
   }
 });
 
+// Instant auto-save for all settings toggles and inputs
+[
+  "cfg-autostart",
+  "cfg-minimize-to-tray",
+  "cfg-start-minimized",
+  "cfg-headless",
+  "cfg-screenshot",
+  "cfg-interval",
+  "cfg-tg-enabled",
+  "cfg-dc-enabled"
+].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener("change", () => {
+      saveFullConfig();
+    });
+  }
+});
+
 // ==========================================================================
 //                           HISTORY LOGIC
 // ==========================================================================

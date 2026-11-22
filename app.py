@@ -99,10 +99,24 @@ def set_windows_autostart(enable: bool) -> bool:
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, winreg.KEY_SET_VALUE) as key:
             if enable:
-                base_dir = Path(__file__).resolve().parent
-                venv_pythonw = base_dir / ".venv" / "Scripts" / "pythonw.exe"
-                pythonw_exe = str(venv_pythonw) if venv_pythonw.exists() else sys.executable.replace("python.exe", "pythonw.exe")
-                cmd_str = f'"{pythonw_exe}" "{base_dir / "app.py"}" --minimized'
+                if getattr(sys, 'frozen', False):
+                    # Running as compiled standalone AutoCollect.exe
+                    exe_path = Path(sys.executable).resolve()
+                    cmd_str = f'"{exe_path}" --minimized'
+                else:
+                    # Running from source / Python / VBS
+                    base_dir = Path(__file__).resolve().parent
+                    dist_exe = base_dir / "dist" / "AutoCollect" / "AutoCollect.exe"
+                    vbs_path = base_dir / "WR_Toolkit.vbs"
+                    if dist_exe.exists():
+                        cmd_str = f'"{dist_exe.resolve()}" --minimized'
+                    elif vbs_path.exists():
+                        cmd_str = f'wscript.exe "{vbs_path.resolve()}"'
+                    else:
+                        venv_pythonw = base_dir / ".venv" / "Scripts" / "pythonw.exe"
+                        pythonw_exe = str(venv_pythonw) if venv_pythonw.exists() else sys.executable.replace("python.exe", "pythonw.exe")
+                        cmd_str = f'"{pythonw_exe}" "{base_dir / "app.py"}" --minimized'
+
                 winreg.SetValueEx(key, AUTOSTART_APP_NAME, 0, winreg.REG_SZ, cmd_str)
                 add_log("INFO", f"Windows autostart registered: {cmd_str}")
             else:
